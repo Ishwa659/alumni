@@ -516,6 +516,25 @@ class GameRunner {
     // Broadcast leaderboard update within 100ms
     const leaderboard = await db.getLeaderboard(this.roomCode);
     this.io.to(this.roomCode).emit('leaderboard_update', leaderboard);
+
+    // Check if all active connected players have answered the question
+    try {
+      const roomSockets = this.io.adapter.rooms.get(this.roomCode);
+      const activePlayers = this.players.filter(p => roomSockets && roomSockets.has(p.socketId));
+      
+      const allAnswered = activePlayers.every(p => this.answersReceived[p.playerId] !== undefined);
+      
+      if (allAnswered && activePlayers.length > 0) {
+        console.log(`⏱️ Everyone answered in room ${this.roomCode}. Ending question early!`);
+        if (this.timerInterval) {
+          clearInterval(this.timerInterval);
+          this.timerInterval = null;
+        }
+        await this.revealAnswer();
+      }
+    } catch (e) {
+      console.error('Error checking if all players answered:', e);
+    }
   }
 
   async revealAnswer() {
