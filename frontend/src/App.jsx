@@ -67,6 +67,15 @@ function App() {
 
   const socketRef = useRef(null);
 
+  // Parse room query param on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get('room');
+    if (roomParam) {
+      setRoomCode(roomParam.toUpperCase().trim());
+    }
+  }, []);
+
   // Initialize socket connection
   useEffect(() => {
     const s = io(`${BACKEND_URL}/game`, {
@@ -341,7 +350,7 @@ function App() {
                 </p>
                 <div className="qr-code-placeholder">
                   <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(window.location.href)}`} 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent("https://ai-trivia-arena.onrender.com/?room=" + roomCode)}`} 
                     alt="QR Code"
                     className="qr-canvas"
                   />
