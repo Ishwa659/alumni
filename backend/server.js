@@ -725,6 +725,10 @@ class GameRunner {
   async submitAnswer(playerId, selectedOption, socket) {
     if ((this.status !== 'game_1_active' && this.status !== 'game_2_active' && this.status !== 'in_progress') || this.timer <= 0) return;
 
+    // Verify player is not admin
+    const player = this.getPlayer(playerId);
+    if (player && player.isAdmin) return;
+
     if (this.answersReceived[playerId] !== undefined) {
       return; 
     }
@@ -754,7 +758,7 @@ class GameRunner {
     // Check if all active connected players have answered the question
     try {
       const roomSockets = this.io.adapter.rooms.get(this.roomCode);
-      const activePlayers = this.players.filter(p => roomSockets && roomSockets.has(p.socketId));
+      const activePlayers = this.players.filter(p => roomSockets && roomSockets.has(p.socketId) && !p.isAdmin);
       
       const allAnswered = activePlayers.every(p => this.answersReceived[p.playerId] !== undefined);
       
@@ -967,8 +971,10 @@ gameNamespace.on('connection', (socket) => {
     socket.join(room_code);
     
     // Save to Database
-    await db.addPlayerScore(room_code, player_id, player_name);
-    await db.incrementPlayerCount(room_code);
+    if (!isPlayerAdmin) {
+      await db.addPlayerScore(room_code, player_id, player_name);
+      await db.incrementPlayerCount(room_code);
+    }
 
     // Send join confirmation back to the socket
     socket.emit('joined_game', {
@@ -1115,7 +1121,9 @@ gameNamespace.on('connection', (socket) => {
     const newRunner = new GameRunner(room_code, gameNamespace);
     for (const p of runner.players) {
       newRunner.addPlayer(p.socketId, p.playerId, p.name, p.isAdmin);
-      await db.addPlayerScore(room_code, p.playerId, p.name);
+      if (!p.isAdmin) {
+        await db.addPlayerScore(room_code, p.playerId, p.name);
+      }
     }
     
     gameRunners[room_code] = newRunner;

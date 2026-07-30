@@ -512,7 +512,7 @@ function App() {
                     <button 
                       className="btn" 
                       onClick={handleStartGame}
-                      disabled={playersList.length < 1}
+                      disabled={playersList.filter(p => !p.is_admin).length < 1}
                     >
                       START GAME 🚀
                     </button>
@@ -555,74 +555,117 @@ function App() {
             </h2>
 
             {/* Clickable options */}
-            <div 
-              className="options-grid"
-              style={{
-                gridTemplateColumns: [1, 2, 3, 4].filter(idx => question[`option_${idx}`]).length > 2 ? '1fr 1fr' : '1fr'
-              }}
-            >
-              {[1, 2, 3, 4].filter(optIndex => question[`option_${optIndex}`]).map((optIndex) => {
-                const optText = question[`option_${optIndex}`];
-                const isSelected = selectedOption === optIndex;
-                
-                let btnClass = 'option-btn';
-                if (isSelected) btnClass += ' selected';
+            {isAdmin ? (
+              <div className="host-quiz-dashboard" style={{ marginTop: '1.5rem', padding: '1.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '20px' }}>
+                <h3 style={{ color: 'var(--accent-gold)', marginBottom: '1.25rem', textAlign: 'center', fontFamily: 'var(--font-family-display)', textTransform: 'uppercase', fontSize: '1.1rem', letterSpacing: '0.1em' }}>
+                  👑 Host View - Question Preview
+                </h3>
+                <div 
+                  className="options-grid"
+                  style={{
+                    gridTemplateColumns: [1, 2, 3, 4].filter(idx => question[`option_${idx}`]).length > 2 ? '1fr 1fr' : '1fr'
+                  }}
+                >
+                  {[1, 2, 3, 4].filter(optIndex => question[`option_${optIndex}`]).map((optIndex) => {
+                    const optText = question[`option_${optIndex}`];
+                    const isCorrectOpt = optIndex === question.correct_option;
+                    const badgeMap = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' };
+                    return (
+                      <div
+                        key={optIndex}
+                        className={`option-btn ${isCorrectOpt ? 'correct' : ''}`}
+                        style={{ cursor: 'default', opacity: isCorrectOpt ? 1 : 0.6 }}
+                      >
+                        <span>{optText}</span>
+                        {isCorrectOpt ? (
+                          <span className="status-badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white', borderColor: 'transparent', fontSize: '0.75rem' }}>
+                            CORRECT ANSWER ✓
+                          </span>
+                        ) : (
+                          <span className="option-badge">
+                            {badgeMap[optIndex]}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.95rem' }}>
+                  💡 Players are currently submitting answers. Waiting for timer...
+                </div>
+              </div>
+            ) : (
+              <>
+                <div 
+                  className="options-grid"
+                  style={{
+                    gridTemplateColumns: [1, 2, 3, 4].filter(idx => question[`option_${idx}`]).length > 2 ? '1fr 1fr' : '1fr'
+                  }}
+                >
+                  {[1, 2, 3, 4].filter(optIndex => question[`option_${optIndex}`]).map((optIndex) => {
+                    const optText = question[`option_${optIndex}`];
+                    const isSelected = selectedOption === optIndex;
+                    
+                    let btnClass = 'option-btn';
+                    if (isSelected) btnClass += ' selected';
 
-                // Check feedback cases
-                if (feedback) {
-                  const isCorrectOpt = optIndex === feedback.correct_option;
-                  const isWrongSelected = isSelected && !feedback.is_correct;
+                    // Check feedback cases
+                    if (feedback) {
+                      const isCorrectOpt = optIndex === feedback.correct_option;
+                      const isWrongSelected = isSelected && !feedback.is_correct;
 
-                  if (isCorrectOpt) {
-                    btnClass += ' correct';
-                  } else if (isWrongSelected) {
-                    btnClass += ' wrong';
-                  }
-                }
+                      if (isCorrectOpt) {
+                        btnClass += ' correct';
+                      } else if (isWrongSelected) {
+                        btnClass += ' wrong';
+                      }
+                    }
 
-                const badgeMap = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' };
+                    const badgeMap = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' };
 
-                return (
-                  <button
-                    key={optIndex}
-                    className={btnClass}
-                    onClick={() => handleSelectOption(optIndex)}
-                    disabled={answerSubmitted || timer <= 0 || (feedback && feedback.is_reveal)}
-                  >
-                    <span>{optText}</span>
-                    <span className="option-badge">
-                      {badgeMap[optIndex]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                    return (
+                      <button
+                        key={optIndex}
+                        className={btnClass}
+                        onClick={() => handleSelectOption(optIndex)}
+                        disabled={answerSubmitted || timer <= 0 || (feedback && feedback.is_reveal)}
+                      >
+                        <span>{optText}</span>
+                        <span className="option-badge">
+                          {badgeMap[optIndex]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-            {/* Live Buzzer Feedback */}
-            <div className="feedback-container">
-              {feedback && (
-                <>
-                  {feedback.is_reveal ? (
-                    <div className="feedback-alert timeout">
-                      Time's up! Correct answer: <strong>{feedback.correct_answer_text}</strong>
-                    </div>
-                  ) : feedback.is_correct ? (
-                    <div className="feedback-alert correct">
-                      ✓ Correct! +1 Point
-                    </div>
-                  ) : (
-                    <div className="feedback-alert wrong">
-                      ✗ Wrong! Correct: {feedback.correct_answer_text}
+                {/* Live Buzzer Feedback */}
+                <div className="feedback-container">
+                  {feedback && (
+                    <>
+                      {feedback.is_reveal ? (
+                        <div className="feedback-alert timeout">
+                          Time's up! Correct answer: <strong>{feedback.correct_answer_text}</strong>
+                        </div>
+                      ) : feedback.is_correct ? (
+                        <div className="feedback-alert correct">
+                          ✓ Correct! +1 Point
+                        </div>
+                      ) : (
+                        <div className="feedback-alert wrong">
+                          ✗ Wrong! Correct: {feedback.correct_answer_text}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {!feedback && answerSubmitted && (
+                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      Buzzer locked! Waiting for timer...
                     </div>
                   )}
-                </>
-              )}
-              {!feedback && answerSubmitted && (
-                <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                  Buzzer locked! Waiting for timer...
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
 
           {/* Sidebar Leaderboard */}
