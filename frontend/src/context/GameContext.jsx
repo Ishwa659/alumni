@@ -9,7 +9,13 @@ export const GameProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [playerId, setPlayerId] = useState(() => localStorage.getItem('trivia_player_id') || null);
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('trivia_player_name') || '');
-  const [roomCode, setRoomCode] = useState(() => localStorage.getItem('trivia_room_code') || 'TOURNAMENT');
+  const [roomCode, setRoomCode] = useState(() => {
+    const stored = localStorage.getItem('trivia_room_code');
+    // Sanitize: if stored value is corrupted (e.g. doubled), reset to default
+    if (stored && stored.length <= 20) return stored;
+    localStorage.removeItem('trivia_room_code');
+    return 'TOURNAMENT';
+  });
   
   // Game states mapped from server
   const [currentState, setCurrentState] = useState('lobby'); // lobby, countdown, round_X, spin_X, results

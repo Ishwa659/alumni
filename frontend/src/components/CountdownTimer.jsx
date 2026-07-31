@@ -62,10 +62,11 @@ export default function CountdownTimer({ seconds }) {
               cx="100"
               cy="100"
               r={radius}
-              stroke="var(--accent-cyan)"
+              stroke="var(--primary-purple)"
               strokeWidth="6"
               fill="transparent"
               strokeDasharray={circumference}
+              style={{ strokeDashoffset: circumference }}
               animate={{ strokeDashoffset }}
               transition={{ duration: 0.8, ease: 'linear' }}
             />

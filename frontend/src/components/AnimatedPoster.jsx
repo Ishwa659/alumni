@@ -57,7 +57,8 @@ export default function AnimatedPoster({ onJoin, players, currentState, onStartG
               className="text-input" 
               placeholder="TOURNAMENT" 
               value={room}
-              onChange={(e) => setRoom(e.target.value.toUpperCase())}
+              readOnly
+              style={{ opacity: 0.6, cursor: 'not-allowed' }}
             />
           </div>
 
