@@ -1050,15 +1050,14 @@ class GameRunner {
     const question = this.questions.find(q => q.question_number === this.currentQuestionNumber);
     if (!question) return;
 
-    // Emit 'answer_submitted' to player ONLY (for checkmark / lock state)
+    // Emit 'answer_submitted' to player ONLY (for immediate color feedback)
     socket.emit('answer_submitted', {
       status: "submitted",
       message: "Your answer received",
-      player_id: playerId
+      player_id: playerId,
+      is_correct: selectedOption === question.correct_option,
+      correct_option: question.correct_option
     });
-
-    // Trigger a throttled broadcast of vote trends to everyone in the room
-    this.triggerVoteTrendUpdate();
 
     // Check if all active connected players have answered the question
     try {
@@ -1080,48 +1079,7 @@ class GameRunner {
     }
   }
 
-  triggerVoteTrendUpdate() {
-    const now = Date.now();
-    if (!this.lastVoteTrendTime || now - this.lastVoteTrendTime >= 500) {
-      this.broadcastVoteTrends();
-    } else {
-      if (this.voteTrendTimeout) return;
-      const delay = 500 - (now - this.lastVoteTrendTime);
-      this.voteTrendTimeout = setTimeout(() => {
-        this.voteTrendTimeout = null;
-        this.broadcastVoteTrends();
-      }, delay);
-    }
-  }
-
-  async broadcastVoteTrends() {
-    this.lastVoteTrendTime = Date.now();
-    
-    const roomSockets = this.io.adapter.rooms.get(this.roomCode);
-    const activePlayers = this.players.filter(p => !p.isAdmin);
-    const totalSubmitted = Object.keys(this.answersReceived).length;
-    const playersRemaining = Math.max(0, activePlayers.length - totalSubmitted);
-
-    const trendData = {
-      game_number: this.currentGameNumber,
-      question_number: this.currentQuestionNumber,
-      option_1_votes: this.voteTrends[1] || 0,
-      option_2_votes: this.voteTrends[2] || 0,
-      option_3_votes: this.voteTrends[3] || 0,
-      option_4_votes: this.voteTrends[4] || 0,
-      total_submitted: totalSubmitted,
-      players_remaining: playersRemaining,
-      timer_seconds: this.timer
-    };
-
-    this.io.to(this.roomCode).emit('vote_trend_update', trendData);
-  }
-
   async revealAnswer() {
-    if (this.voteTrendTimeout) {
-      clearTimeout(this.voteTrendTimeout);
-      this.voteTrendTimeout = null;
-    }
 
     const question = this.questions.find(q => q.question_number === this.currentQuestionNumber);
     if (!question) return;

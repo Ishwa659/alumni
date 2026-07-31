@@ -426,11 +426,18 @@ function App() {
     // Sent to individual player upon clicking an answer
     s.on('answer_submitted', (data) => {
       setAnswerSubmitted(true);
+      // Set partial feedback immediately so the button turns red/green
+      setFeedback({
+        is_reveal: false,
+        correct_option: data.correct_option,
+        is_correct: data.is_correct,
+        is_your_answer_correct: data.is_correct
+      });
     });
 
-    // Throttled live voting trend updates
+    // Throttled live voting trend updates (removed from backend, kept handler empty just in case)
     s.on('vote_trend_update', (data) => {
-      setVoteTrend(data);
+      // setVoteTrend(data);
     });
 
     // Replaces 'answer_feedback' and broadcasts to all
@@ -834,10 +841,7 @@ function App() {
                     );
                   })}
                 </div>
-                {/* Live voting trend display for admin */}
-                {!feedback && voteTrend && (
-                  <VotingTrendDisplay trend={voteTrend} />
-                )}
+                {/* Live voting trend removed per requirements */}
                 {feedback && (
                   <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                     Explanation: <strong>{feedback.explanation}</strong>
@@ -900,10 +904,7 @@ function App() {
                   })}
                 </div>
 
-                {/* Show Live Voting Trend during the selection window */}
-                {!feedback && voteTrend && (
-                  <VotingTrendDisplay trend={voteTrend} />
-                )}
+                {/* Show Live Voting Trend removed per requirements */}
 
                 {/* Live Buzzer Feedback */}
                 <div className="feedback-container">
