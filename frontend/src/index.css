@@ -1473,8 +1473,8 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .trend-bar-wrapper {
-  background: hsla(225, 50%, 6%, 0.6);
-  border-radius: 8px;
+  background: hsla(220, 20%, 85%, 1); /* Light grey base track */
+  border-radius: 99px;
   height: 16px;
   overflow: hidden;
   border: 1px solid var(--border-light);
@@ -1484,7 +1484,7 @@ h1, h2, h3, h4, h5, h6 {
 .trend-bar {
   background: var(--primary-grad);
   height: 100%;
-  border-radius: 6px;
+  border-radius: 99px;
   transition: width 0.4s cubic-bezier(0.1, 0.8, 0.2, 1);
   box-shadow: 0 0 10px var(--primary-glow);
 }

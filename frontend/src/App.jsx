@@ -426,13 +426,6 @@ function App() {
     // Sent to individual player upon clicking an answer
     s.on('answer_submitted', (data) => {
       setAnswerSubmitted(true);
-      // Set partial feedback immediately so the button turns red/green
-      setFeedback({
-        is_reveal: false,
-        correct_option: data.correct_option,
-        is_correct: data.is_correct,
-        is_your_answer_correct: data.is_correct
-      });
     });
 
     // Throttled live voting trend updates (removed from backend, kept handler empty just in case)
@@ -977,8 +970,8 @@ function App() {
             )}
           </div>
 
-          <h3 style={{ fontSize: '1.4rem', marginBottom: '1.5rem' }}>Vote Distribution</h3>
-          <div className="voting-trend-bars" style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '15px' }}>
+          <h3 style={{ fontSize: '1.4rem', marginBottom: '1.5rem', textAlign: 'center' }}>Vote Distribution</h3>
+          <div className="voting-trend-bars" style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.03)', borderRadius: '20px', border: '1px solid var(--border-light)' }}>
             {[1, 2, 3, 4].map(idx => {
               const opt = feedback.final_vote_distribution?.[`option_${idx}`];
               if (!opt && !question?.[`option_${idx}`]) return null;
@@ -986,22 +979,29 @@ function App() {
               const percentage = opt ? opt.percentage : 0;
               const votes = opt ? opt.votes : 0;
               const isCorrect = idx === feedback.correct_option;
+              const isUserChoice = idx === selectedOption;
+              const isWrongChoice = isUserChoice && !isCorrect;
+              
+              let barBg = 'var(--text-muted)';
+              if (isCorrect) barBg = 'var(--correct-grad)';
+              else if (isWrongChoice) barBg = 'var(--wrong-grad)';
+              else if (percentage > 0) barBg = 'var(--text-secondary)';
               
               return (
                 <div key={idx} className="trend-bar-row" style={{ marginBottom: '1.2rem' }}>
-                  <span className="trend-option-label" style={{ minWidth: '90px', color: isCorrect ? 'var(--correct)' : 'var(--text)', fontWeight: isCorrect ? 700 : 400 }}>
-                    Option {idx} {isCorrect && '✓'}
+                  <span className="trend-option-label" style={{ minWidth: '90px', color: isCorrect ? 'var(--correct)' : (isWrongChoice ? 'var(--wrong)' : 'var(--text-primary)'), fontWeight: isCorrect || isUserChoice ? 700 : 500 }}>
+                    Option {idx} {isCorrect && '✓'} {isWrongChoice && '✗'}
                   </span>
-                  <div className="trend-bar-wrapper" style={{ height: '28px' }}>
+                  <div className="trend-bar-wrapper" style={{ height: '32px' }}>
                     <div 
                       className="trend-bar" 
                       style={{ 
                         width: `${percentage}%`,
-                        background: isCorrect ? 'var(--correct-grad)' : 'var(--accent-primary)' 
+                        background: barBg
                       }}
                     />
                   </div>
-                  <span className="trend-vote-count" style={{ minWidth: '160px', fontWeight: isCorrect ? 700 : 400 }}>
+                  <span className="trend-vote-count" style={{ minWidth: '160px', fontWeight: isCorrect || isUserChoice ? 700 : 500 }}>
                     {votes} votes ({percentage}%)
                   </span>
                 </div>
