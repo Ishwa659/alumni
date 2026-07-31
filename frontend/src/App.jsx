@@ -1,1029 +1,1126 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { io } from 'socket.io-client';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import {
+  Brain, Cpu, MessageSquare, Eye, Scale, Users, Zap, Trophy,
+  Volume2, VolumeX, Flame, Sparkles, ArrowRight, ArrowLeft,
+  Check, X, Radio, Play, Award, HelpCircle
+} from 'lucide-react';
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (() => {
-  const { hostname, protocol } = window.location;
-  // If running locally (localhost, 127.0.0.1, or local subnet IPs), backend runs on port 3000
-  if (
-    hostname === 'localhost' || 
-    hostname === '127.0.0.1' || 
-    hostname.startsWith('192.168.') || 
-    hostname.startsWith('10.') || 
-    hostname.startsWith('172.')
-  ) {
-    return `${protocol}//${hostname}:3000`;
+const TOPICS = [
+  { id: 'nn', name: 'Neural Networks', tag: 'Where the vibes (and gradients) flow', icon: Brain, signal: 3 },
+  { id: 'ml', name: 'Machine Learning', tag: "It's learning. We promise.", icon: Cpu, signal: 4 },
+  { id: 'llm', name: 'LLMs & Chatbots', tag: 'Definitely not written by one of these', icon: MessageSquare, signal: 5 },
+  { id: 'cv', name: 'Computer Vision', tag: 'Teaching pixels to see the light', icon: Eye, signal: 3 },
+  { id: 'ethics', name: 'AI Ethics', tag: 'The homework nobody skips anymore', icon: Scale, signal: 2 },
+];
+
+const QUESTIONS = {
+  nn: [
+    { q: "What's the basic computational unit of a neural network called?", options: ['Neuron', 'Byte', 'Node.js', 'Pixel'], correct: 0 },
+    { q: 'Which function introduces non-linearity into a neural network?', options: ['Activation function', 'Loss function', 'Cost function', 'Hash function'], correct: 0 },
+    { q: 'What algorithm trains networks by propagating error backward through the layers?', options: ['Backpropagation', 'Forward propagation', 'Quicksort', 'Bubble sort'], correct: 0 },
+    { q: "What do we call the layers sitting between a network's input and output?", options: ['Hidden layers', 'Ozone layers', 'Middle management', 'Buffer layers'], correct: 0 },
+    { q: "What's it called when a model memorizes training data but flops on new data?", options: ['Overfitting', 'Underfitting', 'Overthinking', 'Ghosting'], correct: 0 },
+  ],
+  ml: [
+    { q: 'Which approach trains a model on labeled input-output pairs?', options: ['Supervised learning', 'Unsupervised learning', 'Reinforcement learning', 'Procrastination'], correct: 0 },
+    { q: 'Which approach finds hidden structure in unlabeled data?', options: ['Unsupervised learning', 'Supervised learning', 'Semi-supervised learning', 'Guesswork'], correct: 0 },
+    { q: "What's the process of adjusting a model's internal parameters called?", options: ['Training', 'Compiling', 'Formatting', 'Debugging'], correct: 0 },
+    { q: 'Which technique curbs overfitting by penalizing large weights?', options: ['Regularization', 'Normalization', 'Compression', 'Deletion'], correct: 0 },
+    { q: 'What do we call data held back purely to evaluate a model?', options: ['Test set', 'Training set', 'Backup set', 'Cheat sheet'], correct: 0 },
+  ],
+  llm: [
+    { q: "What does 'GPT' stand for?", options: ['Generative Pre-trained Transformer', 'General Purpose Text', 'Graph Processing Tool', 'Global Prompt Tracker'], correct: 0 },
+    { q: 'Which architecture, introduced in 2017, underlies most modern LLMs?', options: ['Transformer', 'Recurrent network', 'Decision tree', 'Spreadsheet'], correct: 0 },
+    { q: 'Which mechanism lets a transformer weigh how relevant words are to each other?', options: ['Attention', 'Reflection', 'Compression', 'Indexing'], correct: 0 },
+    { q: 'What do we call further training a pretrained model on a narrower dataset?', options: ['Fine-tuning', 'Overclocking', 'Rebooting', 'Downsizing'], correct: 0 },
+    { q: 'What term describes an LLM confidently stating something false?', options: ['Hallucination', 'Improvisation', 'Daydreaming', 'Buffering'], correct: 0 },
+  ],
+  cv: [
+    { q: 'Which network type is the go-to for image recognition?', options: ['Convolutional Neural Network', 'Recurrent Neural Network', 'Decision Tree', 'Spreadsheet Network'], correct: 0 },
+    { q: "What's it called when an image is split into meaningful regions?", options: ['Image segmentation', 'Image compression', 'Image rotation', 'Image deletion'], correct: 0 },
+    { q: 'Which technique locates objects in an image using bounding boxes?', options: ['Object detection', 'Object rejection', 'Object naming', 'Object hoarding'], correct: 0 },
+    { q: 'Which CNN operation shrinks the spatial size of feature maps?', options: ['Pooling', 'Stretching', 'Cropping', 'Rendering'], correct: 0 },
+    { q: 'Which dataset kickstarted a landmark image-classification competition?', options: ['ImageNet', 'WordNet', 'SkyNet', 'Ethernet'], correct: 0 },
+  ],
+  ethics: [
+    { q: 'What term describes an AI system producing unfair outcomes for certain groups?', options: ['Algorithmic bias', 'Algorithmic charm', 'Data drama', 'Model mood'], correct: 0 },
+    { q: "What's it called when we try to understand how a model reached its decision?", options: ['Explainability', 'Guesswork', 'Mind reading', 'Reverse psychology'], correct: 0 },
+    { q: "What term describes keeping a human involved in an AI's decision loop?", options: ['Human-in-the-loop', 'Human-on-hold', 'Human-in-denial', 'Human-out-of-office'], correct: 0 },
+    { q: 'What do we call do inputs deliberately crafted to trick a model into a wrong answer?', options: ['Adversarial examples', 'Practice questions', 'Pop quizzes', 'Rhetorical questions'], correct: 0 },
+    { q: "Which principle is about keeping an AI system's goals matched to human values?", options: ['AI alignment', 'AI branding', 'AI networking', 'AI parking'], correct: 0 },
+  ],
+};
+
+const BOT_POOL = [
+  { name: 'Byte_Sized', avatar: '\u{1F916}' },
+  { name: 'Ctrl_Alt_Defeat', avatar: '\u{1F47E}' },
+  { name: '404_NotFound', avatar: '\u{1F6F8}' },
+  { name: 'OverfitOverlord', avatar: '\u{1F9E0}' },
+  { name: 'GradientGary', avatar: '\u{1F3AF}' },
+];
+
+const TICKER_MESSAGES = [
+  "BREAKING \u2014 local student claims to 'basically be an LLM'",
+  '42 neurons fired during the making of this ticker',
+  'warning: overconfidence in AI trivia may cause smugness',
+  'rumor has it the leaderboard remembers everything',
+  'sponsored by caffeine and 47 open browser tabs',
+  'this app has zero hallucinations. probably.',
+];
+
+const CORRECT_LINES = [
+  'Correct \u2014 the machines approve.',
+  'Correct \u2014 no notes.',
+  'Correct \u2014 you just out-trained a model.',
+  'Correct \u2014 certified big brain moment.',
+];
+
+const WRONG_LINES = [
+  'Incorrect \u2014 even a coin flip beats that.',
+  "Incorrect \u2014 that's a hallucination.",
+  'Incorrect \u2014 back to the training set with you.',
+  'Incorrect \u2014 the bots are judging you.',
+];
+
+const TIMEOUT_LINE = "Time's up \u2014 the clock wasn't bluffing.";
+
+const BADGES = [
+  { id: 'finisher', name: 'Gradient Descender', desc: 'Completed a full match', icon: Trophy },
+  { id: 'streak', name: 'Streak Machine', desc: '3+ correct in a row', icon: Flame },
+  { id: 'perfect', name: 'No Hallucinations', desc: 'Perfect 5/5 score', icon: Sparkles },
+  { id: 'speed', name: 'Quick Draw', desc: 'Averaged under 7s a question', icon: Zap },
+];
+
+const QUESTION_TIME = 15;
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  // In production, assume same origin (reverse proxy handles routing)
-  return window.location.origin;
-})();
+  return a;
+}
 
-function AiLogo({ url, name }) {
-  const [imgFailed, setImgFailed] = useState(false);
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
-  useEffect(() => {
-    setImgFailed(false);
-  }, [url]);
+function buildMatchQuestions(topicId) {
+  const base = shuffle(QUESTIONS[topicId]);
+  return base.map((item) => {
+    const withFlag = item.options.map((opt, i) => ({ opt, isCorrect: i === item.correct }));
+    const shuffled = shuffle(withFlag);
+    return {
+      q: item.q,
+      options: shuffled.map((o) => o.opt),
+      correct: shuffled.findIndex((o) => o.isCorrect),
+    };
+  });
+}
 
-  const lowerUrl = (url || '').toLowerCase();
-  
-  if (lowerUrl.includes('chatgpt')) {
-    return (
-      <div className="ai-logo-container chatgpt">
-        <svg viewBox="0 0 24 24" className="ai-logo-svg" fill="currentColor">
-          <title>ChatGPT</title>
-          <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"/>
-        </svg>
-      </div>
-    );
-  }
+function pickBots() {
+  return shuffle(BOT_POOL).slice(0, 2);
+}
 
-  if (lowerUrl.includes('claude')) {
-    return (
-      <div className="ai-logo-container claude">
-        <svg viewBox="0 0 16 16" className="ai-logo-svg" fill="currentColor">
-          <title>Claude</title>
-          <path d="m3.127 10.604 3.135-1.76.053-.153-.053-.085H6.11l-.525-.032-1.791-.048-1.554-.065-1.505-.08-.38-.081L0 7.832l.036-.234.32-.214.455.04 1.009.069 1.513.105 1.097.064 1.626.17h.259l.036-.105-.089-.065-.068-.064-1.566-1.062-1.695-1.121-.887-.646-.48-.327-.243-.306-.104-.67.435-.48.585.04.15.04.593.456 1.267.981 1.654 1.218.242.202.097-.068.012-.049-.109-.181-.9-1.626-.96-1.655-.428-.686-.113-.411a2 2 0 0 1-.068-.484l.496-.674L4.446 0l.662.089.279.242.411.94.666 1.48 1.033 2.014.302.597.162.553.06.17h.105v-.097l.085-1.134.157-1.392.154-1.792.052-.504.25-.605.497-.327.387.186.319.456-.045.294-.19 1.23-.37 1.93-.243 1.29h.142l.161-.16.654-.868 1.097-1.372.484-.545.565-.601.363-.287h.686l.505.751-.226.775-.707.895-.585.759-.839 1.13-.524.904.048.072.125-.012 1.897-.403 1.024-.186 1.223-.21.553.258.06.263-.218.536-1.307.323-1.533.307-2.284.54-.028.02.032.04 1.029.098.44.024h1.077l2.005.15.525.346.315.424-.053.323-.807.411-3.631-.863-.872-.218h-.12v.073l.726.71 1.331 1.202 1.667 1.55.084.383-.214.302-.226-.032-1.464-1.101-.565-.497-1.28-1.077h-.084v.113l.295.432 1.557 2.34.08.718-.112.234-.404.141-.444-.08-.911-1.28-.94-1.44-.759-1.291-.093.053-.448 4.821-.21.246-.484.186-.403-.307-.214-.496.214-.98.258-1.28.21-1.016.19-1.263.112-.42-.008-.028-.092.012-.953 1.307-1.448 1.957-1.146 1.227-.274.109-.477-.247.045-.44.266-.39 1.586-2.018.956-1.25.617-.723-.004-.105h-.036l-4.212 2.736-.75.096-.324-.302.04-.496.154-.162 1.267-.871z"/>
-        </svg>
-      </div>
-    );
-  }
-
-  if (lowerUrl.includes('gemini')) {
-    return (
-      <div className="ai-logo-container gemini">
-        <svg viewBox="0 0 24 24" className="ai-logo-svg" fill="currentColor">
-          <title>Gemini</title>
-          <path d="M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81"/>
-        </svg>
-      </div>
-    );
-  }
-
-  if (lowerUrl.includes('copilot')) {
-    return (
-      <div className="ai-logo-container copilot">
-        <svg viewBox="0 0 24 24" className="ai-logo-svg" fill="currentColor">
-          <title>Copilot</title>
-          <path d="M23.922 16.997C23.061 18.492 18.063 22.02 12 22.02 5.937 22.02.939 18.492.078 16.997A.641.641 0 0 1 0 16.741v-2.869a.883.883 0 0 1 .053-.22c.372-.935 1.347-2.292 2.605-2.656.167-.429.414-1.055.644-1.517a10.098 10.098 0 0 1-.052-1.086c0-1.331.282-2.499 1.132-3.368.397-.406.89-.717 1.474-.952C7.255 2.937 9.248 1.98 11.978 1.98c2.731 0 4.767.957 6.166 2.093.584.235 1.077.546 1.474.952.85.869 1.132 2.037 1.132 3.368 0 .368-.014.733-.052 1.086.23.462.477 1.088.644 1.517 1.258.364 2.233 1.721 2.605 2.656a.841.841 0 0 1 .053.22v2.869a.641.641 0 0 1-.078.256Zm-11.75-5.992h-.344a4.359 4.359 0 0 1-.355.508c-.77.947-1.918 1.492-3.508 1.492-1.725 0-2.989-.359-3.782-1.259a2.137 2.137 0 0 1-.085-.104L4 11.746v6.585c1.435.779 4.514 2.179 8 2.179 3.486 0 6.565-1.4 8-2.179v-6.585l-.098-.104s-.033.045-.085.104c-.793.9-2.057 1.259-3.782 1.259-1.59 0-2.738-.545-3.508-1.492a4.359 4.359 0 0 1-.355-.508Zm2.328 3.25c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm-5 0c.549 0 1 .451 1 1v2c0 .549-.451 1-1 1-.549 0-1-.451-1-1v-2c0-.549.451-1 1-1Zm3.313-6.185c.136 1.057.403 1.913.878 2.497.442.544 1.134.938 2.344.938 1.573 0 2.292-.337 2.657-.751.384-.435.558-1.15.558-2.361 0-1.14-.243-1.847-.705-2.319-.477-.488-1.319-.862-2.824-1.025-1.487-.161-2.192.138-2.533.529-.269.307-.437.808-.438 1.578v.021c0 .265.021.562.063.893Zm-1.626 0c.042-.331.063-.628.063-.894v-.02c-.001-.77-.169-1.271-.438-1.578-.341-.391-1.046-.69-2.533-.529-1.505.163-2.347.537-2.824 1.025-.462.472-.705 1.179-.705 2.319 0 1.211.175 1.926.558 2.361.365.414 1.084.751 2.657.751 1.21 0 1.902-.394 2.344-.938.475-.584.742-1.44.878-2.497Z"/>
-        </svg>
-      </div>
-    );
-  }
-
-  if (lowerUrl.includes('grok')) {
-    return (
-      <div className="ai-logo-container grok">
-        <svg viewBox="0 0 256 256" className="ai-logo-svg" fill="currentColor">
-          <title>Grok</title>
-          <path d="M128 0C57.3 0 0 57.3 0 128s57.3 128 128 128 128-57.3 128-128S198.7 0 128 0zm0 40c48.6 0 88 39.4 88 88s-39.4 88-88 88-88-39.4-88-88 39.4-88 88-88zm0 24c-35.3 0-64 28.7-64 64s28.7 64 64 64 64-28.7 64-64-28.7-64-64-64zm80-28l-40 40h56l-16-40zm-160 0l-16 40h56l-40-40z"/>
-          <circle cx="128" cy="128" r="32"/>
-          <ellipse cx="128" cy="128" rx="120" ry="28" fill="none" stroke="currentColor" strokeWidth="8" transform="rotate(-30 128 128)"/>
-        </svg>
-      </div>
-    );
-  }
-
-  // Fallback wireframe 3D neon cube for Game 2 technical questions
-  if (!url || imgFailed) {
-    return (
-      <div className="ai-logo-container tech-3d">
-        <svg viewBox="0 0 24 24" className="ai-logo-svg" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <title>3D Technology</title>
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-          <path d="M3.27 6.96L12 12.01l8.73-5.05" />
-          <path d="M12 22.08V12" />
-        </svg>
-      </div>
-    );
-  }
-
+function SignalBars({ level }) {
   return (
-    <img 
-      src={url} 
-      alt={`${name || 'AI'} Logo`} 
-      className="ai-logo" 
-      onError={() => setImgFailed(true)} 
-    />
+    <span className="at-signal" aria-label={`Signal level ${level} of 5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span
+          key={n}
+          className={`at-signal-bar${n <= level ? ' at-signal-bar-on' : ''}`}
+          style={{ height: `${4 + n * 3}px` }}
+        />
+      ))}
+    </span>
   );
 }
 
-
-function App() {
-  const [socket, setSocket] = useState(null);
-  const [screen, setScreen] = useState('lobby'); // lobby, game, game_1_results, game_2_results, final_leaderboard
-  const [roomCode, setRoomCode] = useState('');
-  const [playerName, setPlayerName] = useState('');
-  const [playerEmoji, setPlayerEmoji] = useState('');
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [playerId, setPlayerId] = useState(() => localStorage.getItem('ai_trivia_player_id') || '');
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [joined, setJoined] = useState(false);
-  
-  // Lobby state
-  const [playersList, setPlayersList] = useState([]);
-  
-  // Gameplay state
-  const [question, setQuestion] = useState(null);
-  const [timer, setTimer] = useState(15);
-  const [selectedOption, setSelectedOption] = useState(null);
-  const [feedback, setFeedback] = useState(null);
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [answerSubmitted, setAnswerSubmitted] = useState(false);
-
-  // Multi-game sequence state
-  const [currentGameNumber, setCurrentGameNumber] = useState(1);
-  const [game1Leaderboard, setGame1Leaderboard] = useState([]);
-  const [game2Leaderboard, setGame2Leaderboard] = useState([]);
-  const [finalLeaderboard, setFinalLeaderboard] = useState([]);
-  const [winner, setWinner] = useState(null);
-
-  // Results state
-  const [finalResults, setFinalResults] = useState(null);
-
-  // Error/Status Alert
-  const [alertMsg, setAlertMsg] = useState(null);
-
-  const socketRef = useRef(null);
-
-  // Parse room query param on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const roomParam = params.get('room');
-    if (roomParam) {
-      setRoomCode(roomParam.toUpperCase().trim());
-    }
-  }, []);
-
-  // Initialize socket connection
-  useEffect(() => {
-    const s = io(`${BACKEND_URL}/game`, {
-      transports: ['websocket', 'polling'],
-      autoConnect: true
-    });
-    
-    socketRef.current = s;
-    setSocket(s);
-
-    s.on('connect', () => {
-      console.log('Connected to socket server');
-      // If we previously joined a room, attempt to auto-rejoin
-      const savedRoom = sessionStorage.getItem('ai_trivia_room_code');
-      const savedName = sessionStorage.getItem('ai_trivia_player_name');
-      const savedId = localStorage.getItem('ai_trivia_player_id');
-      if (savedRoom && savedName && savedId) {
-        s.emit('join_game', {
-          room_code: savedRoom,
-          player_name: savedName,
-          player_id: savedId
-        });
-      }
-    });
-
-    s.on('joined_game', (data) => {
-      setJoined(true);
-      setRoomCode(data.room_code);
-      setPlayerName(data.player_name);
-      setPlayerId(data.player_id);
-      setIsAdmin(data.is_admin);
-      localStorage.setItem('ai_trivia_player_id', data.player_id);
-      sessionStorage.setItem('ai_trivia_room_code', data.room_code);
-      sessionStorage.setItem('ai_trivia_player_name', data.player_name);
-
-      if (data.current_game_number) {
-        setCurrentGameNumber(data.current_game_number);
-      }
-
-      if (data.game_status === 'game_1_active' || data.game_status === 'game_2_active' || data.game_status === 'in_progress') {
-        setScreen('game');
-      } else if (data.game_status === 'game_1_finished') {
-        setScreen('game_1_results');
-      } else if (data.game_status === 'game_2_finished' || data.game_status === 'completed') {
-        setScreen('final_leaderboard');
-      } else {
-        setScreen('lobby');
-      }
-    });
-
-    s.on('player_list_update', (list) => {
-      setPlayersList(list);
-    });
-
-    s.on('game_1_started', (data) => {
-      setCurrentGameNumber(1);
-      setScreen('game');
-    });
-
-    s.on('question_loaded', (data) => {
-      setQuestion(data);
-      if (data.game_number) {
-        setCurrentGameNumber(data.game_number);
-      }
-      setTimer(data.timer_seconds || 15);
-      setSelectedOption(null);
-      setFeedback(null);
-      setAnswerSubmitted(false);
-      setScreen('game');
-    });
-
-    s.on('timer_tick', (data) => {
-      setTimer(data.seconds_remaining);
-    });
-
-    s.on('leaderboard_update', (data) => {
-      setLeaderboard(data);
-    });
-
-    s.on('answer_feedback', (data) => {
-      setFeedback(data);
-    });
-
-    s.on('answer_reveal', (data) => {
-      setFeedback({
-        is_reveal: true,
-        correct_option: data.correct_option,
-        correct_answer_text: data.correct_answer_text,
-        explanation: data.explanation || ''
-      });
-      setLeaderboard(data.leaderboard);
-    });
-
-    s.on('game_1_finished', (data) => {
-      setGame1Leaderboard(data.game_1_leaderboard);
-      setLeaderboard(data.cumulative_leaderboard);
-      setWinner(data.game_1_leaderboard[0] || null);
-      setScreen('game_1_results');
-    });
-
-    s.on('game_2_started', (data) => {
-      setCurrentGameNumber(2);
-      setQuestion(null);
-      setSelectedOption(null);
-      setFeedback(null);
-      setAnswerSubmitted(false);
-      setScreen('game');
-    });
-
-    s.on('game_2_finished', (data) => {
-      setGame2Leaderboard(data.game_2_leaderboard);
-      setLeaderboard(data.cumulative_leaderboard);
-      setWinner(data.game_2_leaderboard[0] || null);
-      setScreen('game_2_results');
-    });
-
-    s.on('all_games_finished', (data) => {
-      setFinalLeaderboard(data.final_leaderboard);
-      setWinner(data.winner);
-      setScreen('final_leaderboard');
-    });
-
-    s.on('game_finished', (data) => {
-      setFinalResults(data);
-      setScreen('final_leaderboard');
-    });
-
-    s.on('game_reset', () => {
-      setQuestion(null);
-      setFeedback(null);
-      setSelectedOption(null);
-      setAnswerSubmitted(false);
-      setFinalResults(null);
-      setCurrentGameNumber(1);
-      setGame1Leaderboard([]);
-      setGame2Leaderboard([]);
-      setFinalLeaderboard([]);
-      setWinner(null);
-      setScreen('lobby');
-    });
-
-    s.on('error_message', (data) => {
-      showTemporaryAlert(data.message);
-    });
-
-    s.on('disconnect', () => {
-      console.log('Socket disconnected');
-    });
-
-    return () => {
-      s.disconnect();
-    };
-  }, []);
-
-  const showTemporaryAlert = (msg) => {
-    setAlertMsg(msg);
-    setTimeout(() => {
-      setAlertMsg(null);
-    }, 4000);
-  };
-
-  const handleJoin = (e) => {
-    e.preventDefault();
-    if (!roomCode.trim() || !playerName.trim()) {
-      showTemporaryAlert('Please enter both room code and your name');
-      return;
-    }
-    if (socket) {
-      socket.emit('join_game', {
-        room_code: roomCode.toUpperCase().trim(),
-        player_name: playerEmoji ? `${playerEmoji} ${playerName.trim()}` : playerName.trim(),
-        player_id: playerId
-      });
-    }
-  };
-
-  const handleStartGame = () => {
-    if (socket && isAdmin) {
-      socket.emit('start_game', {
-        room_code: roomCode,
-        player_id: playerId
-      });
-    }
-  };
-
-  const handleSelectOption = (optionIndex) => {
-    if (answerSubmitted || timer <= 0 || (feedback && feedback.is_reveal)) return;
-    
-    setSelectedOption(optionIndex);
-    setAnswerSubmitted(true);
-
-    if (socket) {
-      socket.emit('submit_answer', {
-        room_code: roomCode,
-        player_id: playerId,
-        selected_option: optionIndex
-      });
-    }
-  };
-
-  const handlePlayAgain = () => {
-    if (socket && isAdmin) {
-      socket.emit('play_again', {
-        room_code: roomCode,
-        player_id: playerId
-      });
-    }
-  };
-
-  const handleStartGame2 = () => {
-    if (socket && isAdmin) {
-      socket.emit('start_game_2', {
-        room_code: roomCode,
-        player_id: playerId
-      });
-    }
-  };
-
-  const exportToCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Rank,Player Name,Game 1 Score,Game 2 Score,Cumulative Score\n";
-    finalLeaderboard.forEach((p) => {
-      csvContent += `${p.rank},"${p.name}",${p.game_1},${p.game_2},${p.total}\n`;
-    });
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `tournament_results_${roomCode}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-
-
-  // Render Screens
+function Ticker() {
+  const line = TICKER_MESSAGES.concat(TICKER_MESSAGES).join('   \u2022   ');
   return (
-    <div className="app-container">
-      {alertMsg && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          background: 'var(--wrong-grad)',
-          padding: '0.75rem 2rem',
-          borderRadius: '30px',
-          boxShadow: '0 5px 15px rgba(0,0,0,0.3)',
-          zIndex: 9999,
-          fontWeight: 600,
-          animation: 'fadeIn 0.3s'
-        }}>
-          ⚠️ {alertMsg}
-        </div>
-      )}
+    <div className="at-ticker">
+      <span className="at-ticker-tag"><Radio size={12} /> LIVE</span>
+      <div className="at-ticker-window">
+        <div className="at-ticker-track">{line}</div>
+      </div>
+    </div>
+  );
+}
 
-      <header className="header">
-        <div className="brand">
-          <span>🧠</span> AI Trivia Arena
-        </div>
-        {joined && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <span style={{ 
-              background: 'rgba(255,255,255,0.06)', 
-              padding: '0.4rem 1rem', 
-              borderRadius: '20px', 
-              border: '1px solid var(--border-light)',
-              fontSize: '0.9rem',
-              fontWeight: 600
-            }}>
-              Room: <span style={{ color: 'hsl(220, 95%, 75%)' }}>{roomCode}</span>
-            </span>
-            {isAdmin && <span className="admin-tag">HOST</span>}
-          </div>
-        )}
-      </header>
+function OnAirDot() {
+  return (
+    <span className="at-onair">
+      <span className="at-onair-dot" />
+      ON AIR
+    </span>
+  );
+}
 
-      {/* Screen 1: Lobby (Join / Waiting Room) */}
-      {screen === 'lobby' && (
-        <>
-          {!joined ? (
-            <div className="lobby-card">
-              <h1 className="lobby-title">Enter the Arena</h1>
-              <p className="lobby-subtitle">Real-time AI Trivia Multiplayer Game</p>
-              <form onSubmit={handleJoin}>
-                <div className="form-group">
-                  <label className="form-label">Room Code</label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    placeholder="e.g. ALPHA1" 
-                    value={roomCode}
-                    onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                    maxLength={10}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Your Nickname</label>
-                  <input 
-                    type="text" 
-                    className="input-field" 
-                    placeholder="Enter your name" 
-                    value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
-                    maxLength={15}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Choose Your Emoji</label>
-                  <div className="emoji-selector">
-                    <button 
-                      type="button"
-                      className="emoji-trigger"
-                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    >
-                      {playerEmoji || '😀'} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{playerEmoji ? 'Change' : 'Pick emoji'}</span>
-                    </button>
-                    {showEmojiPicker && (
-                      <div className="emoji-grid">
-                        {['😀','😎','🤖','🧠','🚀','⚡','🔥','💎','🎯','🏆','👾','🦊','🐱','🦁','🐼','🦄','🌟','💜','🎮','🎲','👑','🦅','🐲','🌈','🍀','⭐','💡','🎭','🦋','🌺'].map(emoji => (
-                          <button
-                            key={emoji}
-                            type="button"
-                            className={`emoji-option ${playerEmoji === emoji ? 'selected' : ''}`}
-                            onClick={() => {
-                              setPlayerEmoji(emoji);
-                              setShowEmojiPicker(false);
-                            }}
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <button type="submit" className="btn">
-                  JOIN GAME <span>⚡</span>
-                </button>
-              </form>
-            </div>
-          ) : (
-            <div className="waiting-grid">
-              <div className="waiting-section">
-                <div className="section-header">
-                  <span>Lobby Waiting List</span>
-                  <span className="player-counter">{playersList.length} Joined</span>
-                </div>
-                <div className="players-list">
-                  {playersList.map((p, idx) => (
-                    <div 
-                      key={idx} 
-                      className={`player-pill ${p.is_admin ? 'admin-pill' : ''}`}
-                    >
-                      {p.is_admin && <span className="admin-badge">👑</span>}
-                      {p.player_name}
-                    </div>
-                  ))}
-                  {playersList.length === 0 && (
-                    <div style={{ gridColumn: '1/-1', textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>
-                      Waiting for players to connect...
-                    </div>
-                  )}
-                </div>
-              </div>
+export default function AITriviaArena() {
+  const [screen, setScreen] = useState('home');
+  const [playerName, setPlayerName] = useState('');
+  const [topicId, setTopicId] = useState(null);
+  const [bots, setBots] = useState([]);
+  const [matchQuestions, setMatchQuestions] = useState([]);
+  const [qIndex, setQIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [streak, setStreak] = useState(0);
+  const [maxStreak, setMaxStreak] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME);
+  const [timeUsedTotal, setTimeUsedTotal] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [answered, setAnswered] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [botStatus, setBotStatus] = useState({});
+  const [muted, setMuted] = useState(false);
 
-              <div className="waiting-actions">
-                <h3>Invite Players</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: '0.5rem 0 1rem 0' }}>
-                  Scan code or share URL to join
-                </p>
-                <div className="qr-code-placeholder">
-                  <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent("https://ai-trivia-arena.onrender.com/?room=" + roomCode)}`} 
-                    alt="QR Code"
-                    className="qr-canvas"
-                  />
-                </div>
-                
-                {isAdmin ? (
-                  <div className="admin-panel" style={{ width: '100%' }}>
-                    <p style={{ fontSize: '0.9rem', color: 'var(--accent-gold)', marginBottom: '1rem', fontWeight: 600 }}>
-                      You are the host! Start the game when ready.
-                    </p>
-                    <button 
-                      className="btn" 
-                      onClick={handleStartGame}
-                      disabled={playersList.filter(p => !p.is_admin).length < 1}
-                    >
-                      START GAME 🚀
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ marginTop: '1.5rem', color: 'var(--text-muted)' }}>
-                    <p>Waiting for host to start the game...</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </>
-      )}
+  const mutedRef = useRef(muted);
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
 
-      {/* Screen 2: Game Room */}
-      {screen === 'game' && question && (
-        <div className="game-grid">
-          <div className="game-main">
-            <div className="game-header">
-              <span className="question-progress">
-                Game {currentGameNumber}/2: {currentGameNumber === 1 ? "AI Chatbot Trivia" : "Image-to-3D Conversion Technology"} | Question {question.question_number} / 10
-              </span>
-              <div className="timer-container">
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>TIME REMAINING</span>
-                <div className={`timer-circle ${timer <= 5 ? (timer <= 2 ? 'danger' : 'warning') : ''}`}>
-                  {timer}
-                </div>
-              </div>
-            </div>
+  const audioCtxRef = useRef(null);
+  const getCtx = useCallback(() => {
+    if (!audioCtxRef.current) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtxRef.current = new AC();
+    }
+    return audioCtxRef.current;
+  }, []);
 
-            {/* AI Logo */}
-            <div className="logo-display">
-              <AiLogo url={question.ai_logo_url} name={question.option_1} />
-            </div>
+  const playTone = useCallback((freq, duration, type = 'sine', gainStart = 0.16, delay = 0) => {
+    if (mutedRef.current) return;
+    const ctx = getCtx();
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    const t0 = ctx.currentTime + delay;
+    gain.gain.setValueAtTime(gainStart, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration);
+  }, [getCtx]);
 
-            {/* Question Text */}
-            <h2 className="question-text">
-              {question.question_text}
-            </h2>
+  const playCorrect = useCallback(() => {
+    playTone(523.25, 0.12, 'sine', 0.15, 0);
+    playTone(783.99, 0.16, 'sine', 0.15, 0.09);
+  }, [playTone]);
 
-            {/* Clickable options */}
-            {isAdmin ? (
-              <div className="host-quiz-dashboard" style={{ marginTop: '1.5rem', padding: '1.5rem', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-light)', borderRadius: '20px' }}>
-                <h3 style={{ color: 'var(--accent-gold)', marginBottom: '1.25rem', textAlign: 'center', fontFamily: 'var(--font-family-display)', textTransform: 'uppercase', fontSize: '1.1rem', letterSpacing: '0.1em' }}>
-                  👑 Host View - Question Preview
-                </h3>
-                <div 
-                  className="options-grid"
-                  style={{
-                    gridTemplateColumns: [1, 2, 3, 4].filter(idx => question[`option_${idx}`]).length > 2 ? '1fr 1fr' : '1fr'
-                  }}
-                >
-                  {[1, 2, 3, 4].filter(optIndex => question[`option_${optIndex}`]).map((optIndex) => {
-                    const optText = question[`option_${optIndex}`];
-                    const isCorrectOpt = optIndex === question.correct_option;
-                    const badgeMap = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' };
-                    return (
-                      <div
-                        key={optIndex}
-                        className={`option-btn ${isCorrectOpt ? 'correct' : ''}`}
-                        style={{ cursor: 'default', opacity: isCorrectOpt ? 1 : 0.6 }}
-                      >
-                        <span>{optText}</span>
-                        {isCorrectOpt ? (
-                          <span className="status-badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white', borderColor: 'transparent', fontSize: '0.75rem' }}>
-                            CORRECT ANSWER ✓
-                          </span>
-                        ) : (
-                          <span className="option-badge">
-                            {badgeMap[optIndex]}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.95rem' }}>
-                  💡 Players are currently submitting answers. Waiting for timer...
-                </div>
-              </div>
-            ) : (
-              <>
-                <div 
-                  className="options-grid"
-                  style={{
-                    gridTemplateColumns: [1, 2, 3, 4].filter(idx => question[`option_${idx}`]).length > 2 ? '1fr 1fr' : '1fr'
-                  }}
-                >
-                  {[1, 2, 3, 4].filter(optIndex => question[`option_${optIndex}`]).map((optIndex) => {
-                    const optText = question[`option_${optIndex}`];
-                    const isSelected = selectedOption === optIndex;
-                    
-                    let btnClass = 'option-btn';
-                    if (isSelected) btnClass += ' selected';
+  const playWrong = useCallback(() => {
+    playTone(220, 0.22, 'sawtooth', 0.1, 0);
+    playTone(164.81, 0.28, 'sawtooth', 0.1, 0.08);
+  }, [playTone]);
 
-                    // Check feedback cases
-                    if (feedback) {
-                      const isCorrectOpt = optIndex === feedback.correct_option;
-                      const isWrongSelected = isSelected && !feedback.is_correct;
+  const playTick = useCallback(() => {
+    playTone(880, 0.05, 'square', 0.05, 0);
+  }, [playTone]);
 
-                      if (isCorrectOpt) {
-                        btnClass += ' correct';
-                      } else if (isWrongSelected) {
-                        btnClass += ' wrong';
-                      }
-                    }
+  const playBadge = useCallback(() => {
+    playTone(523.25, 0.1, 'triangle', 0.14, 0);
+    playTone(659.25, 0.1, 'triangle', 0.14, 0.1);
+    playTone(987.77, 0.22, 'triangle', 0.16, 0.2);
+  }, [playTone]);
 
-                    const badgeMap = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' };
+  function handleAnswer(index) {
+    if (answered) return;
+    setAnswered(true);
+    setSelected(index);
+    const current = matchQuestions[qIndex];
+    const isCorrect = index === current.correct;
+    setTimeUsedTotal((t) => t + (QUESTION_TIME - timeLeft));
+    if (isCorrect) {
+      setScore((s) => s + 1);
+      setStreak((s) => {
+        const next = s + 1;
+        setMaxStreak((m) => Math.max(m, next));
+        return next;
+      });
+      setFeedback(pick(CORRECT_LINES));
+      playCorrect();
+    } else {
+      setStreak(0);
+      setFeedback(index === null ? TIMEOUT_LINE : pick(WRONG_LINES));
+      playWrong();
+    }
+    setTimeout(() => {
+      if (qIndex + 1 < matchQuestions.length) {
+        setQIndex((i) => i + 1);
+        setSelected(null);
+        setAnswered(false);
+        setFeedback('');
+        setTimeLeft(QUESTION_TIME);
+      } else {
+        setScreen('results');
+      }
+    }, 1500);
+  }
 
-                    return (
-                      <button
-                        key={optIndex}
-                        className={btnClass}
-                        onClick={() => handleSelectOption(optIndex)}
-                        disabled={answerSubmitted || timer <= 0 || (feedback && feedback.is_reveal)}
-                      >
-                        <span>{optText}</span>
-                        <span className="option-badge">
-                          {badgeMap[optIndex]}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+  // countdown timer during quiz
+  useEffect(() => {
+    if (screen !== 'quiz' || answered) return undefined;
+    if (timeLeft <= 0) {
+      handleAnswer(null);
+      return undefined;
+    }
+    const id = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, timeLeft, answered]);
 
-                {/* Live Buzzer Feedback */}
-                <div className="feedback-container">
-                  {feedback && (
-                    <>
-                      {feedback.is_reveal ? (
-                        <div className="feedback-alert timeout">
-                          Time's up! Correct answer: <strong>{feedback.correct_answer_text}</strong>
-                        </div>
-                      ) : feedback.is_correct ? (
-                        <div className="feedback-alert correct">
-                          ✓ Correct! +1 Point
-                        </div>
-                      ) : (
-                        <div className="feedback-alert wrong">
-                          ✗ Wrong! Correct: {feedback.correct_answer_text}
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {!feedback && answerSubmitted && (
-                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                      Buzzer locked! Waiting for timer...
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+  // low-time tick sound
+  useEffect(() => {
+    if (screen === 'quiz' && !answered && timeLeft > 0 && timeLeft <= 4) {
+      playTick();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeLeft]);
 
-          {/* Sidebar Leaderboard */}
-          <div className="sidebar-leaderboard">
-            <div className="leaderboard-title">
-              <span>Leaderboard</span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>Live Updates</span>
-            </div>
-            <div 
-              className="leaderboard-table-header"
-              style={{
-                gridTemplateColumns: currentGameNumber === 1 ? '35px 1fr 45px 50px' : '35px 1fr 40px 40px 50px'
-              }}
-            >
-              <span className="hdr-rank">Pos</span>
-              <span className="hdr-name" style={{ textAlign: 'left' }}>Player</span>
-              {currentGameNumber === 1 ? (
-                <>
-                  <span className="hdr-score">G1</span>
-                  <span className="hdr-score">Total</span>
-                </>
-              ) : (
-                <>
-                  <span className="hdr-score">G1</span>
-                  <span className="hdr-score">G2</span>
-                  <span className="hdr-score">Total</span>
-                </>
-              )}
-            </div>
-            <div className="leaderboard-rows">
-              {leaderboard.map((player, idx) => (
-                <div 
-                  key={idx} 
-                  className={`leaderboard-row-grid ${player.player_name === playerName ? 'current-player' : ''}`}
-                  style={{
-                    gridTemplateColumns: currentGameNumber === 1 ? '35px 1fr 45px 50px' : '35px 1fr 40px 40px 50px'
-                  }}
-                >
-                  <span className="leaderboard-rank">#{player.rank}</span>
-                  <span className="leaderboard-name" style={{ textAlign: 'left' }} title={player.player_name}>
-                    {player.player_name}
-                  </span>
-                  {currentGameNumber === 1 ? (
-                    <>
-                      <span className="leaderboard-score">{player.game_1_score || 0}</span>
-                      <span className="leaderboard-score highlight">{player.cumulative_score || player.total_score || 0}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="leaderboard-score">{player.game_1_score || 0}</span>
-                      <span className="leaderboard-score">{player.game_2_score || 0}</span>
-                      <span className="leaderboard-score highlight">{player.cumulative_score || player.total_score || 0}</span>
-                    </>
-                  )}
-                </div>
-              ))}
-              {leaderboard.length === 0 && (
-                <div className="empty-leaderboard">
-                  No scores yet
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+  // bot "thinking -> answered" simulation per question
+  useEffect(() => {
+    if (screen !== 'quiz' || bots.length === 0) return undefined;
+    const initial = {};
+    bots.forEach((b) => { initial[b.name] = 'thinking'; });
+    setBotStatus(initial);
+    const timers = bots.map((b) => setTimeout(() => {
+      setBotStatus((prev) => ({ ...prev, [b.name]: 'answered' }));
+    }, 700 + Math.random() * 2600));
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, qIndex, bots]);
 
-      {/* Screen 3: Game 1 Results */}
-      {screen === 'game_1_results' && (
-        <div className="results-card">
-          <div className="winner-banner">
-            <span className="winner-crown">🏆</span>
-            <h1 className="winner-title">
-              {winner ? `${winner.player_name} wins Game 1!` : 'Game 1 Complete!'}
-            </h1>
-            <p className="winner-score">
-              {winner ? `Score: ${winner.game_1_score} / 10 points` : ''}
-            </p>
-          </div>
+  function startQuickMatch() {
+    beginMatch(pick(TOPICS).id);
+  }
 
-          <h2 style={{ fontSize: '1.6rem', marginBottom: '1rem', textAlign: 'left', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem' }}>
-            Game 1 Leaderboard
-          </h2>
-          <div className="results-table-container" style={{ marginBottom: '2.5rem' }}>
-            <table className="results-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Player</th>
-                  <th>Game 1 Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {game1Leaderboard.map((row, idx) => (
-                  <tr key={idx} className={row.rank === 1 ? 'highlight-winner' : ''}>
-                    <td style={{ fontWeight: 700 }}>#{row.rank}</td>
-                    <td>{row.player_name} {row.rank === 1 && '👑'}</td>
-                    <td style={{ fontWeight: 600 }}>{row.game_1_score} / 10</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+  function goToLobby() {
+    setScreen('lobby');
+  }
 
-          <h2 style={{ fontSize: '1.6rem', marginBottom: '1rem', textAlign: 'left', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem' }}>
-            Cumulative Leaderboard (Round 1)
-          </h2>
-          <div className="results-table-container">
-            <table className="results-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Player</th>
-                  <th>Game 1</th>
-                  <th>Game 2</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leaderboard.map((row, idx) => (
-                  <tr key={idx} className={row.rank === 1 ? 'highlight-winner' : ''}>
-                    <td style={{ fontWeight: 700 }}>#{row.rank}</td>
-                    <td>{row.player_name} {row.rank === 1 && '👑'}</td>
-                    <td>{row.game_1_score}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>-</td>
-                    <td style={{ fontWeight: 600, color: 'hsl(220, 95%, 75%)' }}>{row.cumulative_score || row.total_score}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+  function beginMatch(id) {
+    const ctx = getCtx();
+    if (ctx && ctx.state === 'suspended') ctx.resume();
+    setTopicId(id);
+    setBots(pickBots());
+    setScreen('matching');
+    setTimeout(() => {
+      setMatchQuestions(buildMatchQuestions(id));
+      setQIndex(0);
+      setScore(0);
+      setStreak(0);
+      setMaxStreak(0);
+      setTimeUsedTotal(0);
+      setSelected(null);
+      setAnswered(false);
+      setFeedback('');
+      setTimeLeft(QUESTION_TIME);
+      setScreen('quiz');
+    }, 1700);
+  }
 
-          <div style={{ marginTop: '2.5rem' }}>
-            {isAdmin ? (
-              <div className="admin-panel" style={{ width: '100%' }}>
-                <p style={{ fontSize: '1rem', color: 'var(--accent-gold)', marginBottom: '1.25rem', fontWeight: 600 }}>
-                  ✓ Game 1 Complete! Click below to start Game 2.
-                </p>
-                <button 
-                  className="btn" 
-                  onClick={handleStartGame2}
-                  style={{ boxShadow: '0 0 15px var(--accent-gold-glow)' }}
-                >
-                  START GAME 2 (Image-to-3D Conversion Technology) 🚀
-                </button>
-              </div>
-            ) : (
-              <div className="feedback-alert timeout" style={{ display: 'inline-flex', padding: '0.8rem 2rem' }}>
-                <span>✓ Game 1 Complete! Waiting for admin to start Game 2...</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+  const stats = useMemo(() => ({
+    score,
+    maxStreak,
+    avgTime: matchQuestions.length ? timeUsedTotal / matchQuestions.length : 0,
+  }), [score, maxStreak, timeUsedTotal, matchQuestions.length]);
 
-      {/* Screen 4: Game 2 Results */}
-      {screen === 'game_2_results' && (
-        <div className="results-card">
-          <div className="winner-banner" style={{ background: 'hsla(263, 90%, 62%, 0.08)', borderColor: 'hsl(263, 90%, 62%)', boxShadow: '0 0 20px rgba(99,102,241,0.2)' }}>
-            <span className="winner-crown">🏆</span>
-            <h1 className="winner-title" style={{ color: 'hsl(220, 95%, 75%)', textShadow: '0 0 10px rgba(99,102,241,0.4)' }}>
-              {winner ? `${winner.player_name} wins Game 2!` : 'Game 2 Complete!'}
-            </h1>
-            <p className="winner-score">
-              {winner ? `Score: ${winner.game_2_score} / 10 points` : ''}
-            </p>
-          </div>
+  const earnedBadges = useMemo(() => {
+    if (screen !== 'results') return [];
+    return BADGES.filter((b) => {
+      if (b.id === 'finisher') return true;
+      if (b.id === 'streak') return stats.maxStreak >= 3;
+      if (b.id === 'perfect') return stats.score === 5;
+      if (b.id === 'speed') return stats.avgTime > 0 && stats.avgTime < 7;
+      return false;
+    });
+  }, [screen, stats]);
 
-          <h2 style={{ fontSize: '1.6rem', marginBottom: '1rem', textAlign: 'left', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem' }}>
-            Game 2 Leaderboard (Image-to-3D Tech)
-          </h2>
-          <div className="results-table-container" style={{ marginBottom: '2.5rem' }}>
-            <table className="results-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Player</th>
-                  <th>Game 2 Score</th>
-                </tr>
-              </thead>
-              <tbody>
-                {game2Leaderboard.map((row, idx) => (
-                  <tr key={idx} className={row.rank === 1 ? 'highlight-winner' : ''}>
-                    <td style={{ fontWeight: 700 }}>#{row.rank}</td>
-                    <td>{row.player_name} {row.rank === 1 && '👑'}</td>
-                    <td style={{ fontWeight: 600 }}>{row.game_2_score} / 10</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+  useEffect(() => {
+    if (screen === 'results' && earnedBadges.length > 0) {
+      playBadge();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen]);
 
-          <h2 style={{ fontSize: '1.6rem', marginBottom: '1rem', textAlign: 'left', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem' }}>
-            Final Cumulative Leaderboard
-          </h2>
-          <div className="results-table-container">
-            <table className="results-table">
-              <thead>
-                <tr>
-                  <th>Rank</th>
-                  <th>Player</th>
-                  <th>Game 1</th>
-                  <th>Game 2</th>
-                  <th>Total</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const maxTotal = Math.max(...leaderboard.map(p => p.cumulative_score || p.total_score || 0), 0);
-                  const isTie = leaderboard.filter(p => (p.cumulative_score || p.total_score || 0) === maxTotal).length > 1;
-                  return leaderboard.map((row, idx) => {
-                    const rowScore = row.cumulative_score || row.total_score || 0;
-                    const isChamp = rowScore === maxTotal && maxTotal > 0;
-                    return (
-                      <tr key={idx} className={isChamp ? 'highlight-winner' : ''}>
-                        <td style={{ fontWeight: 700 }}>#{row.rank}</td>
-                        <td>{row.player_name} {isChamp && '👑'}</td>
-                        <td>{row.game_1_score}</td>
-                        <td>{row.game_2_score}</td>
-                        <td style={{ fontWeight: 700, color: 'hsl(220, 95%, 75%)' }}>{rowScore}</td>
-                        <td>
-                          {isChamp && (
-                            <span className="status-badge">
-                              {isTie ? '🏆 CHAMPION (tie)' : '🏆 CHAMPION'}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  });
-                })()}
-              </tbody>
-            </table>
-          </div>
+  const leaderboard = useMemo(() => {
+    if (screen !== 'results') return [];
+    const mock = [
+      { name: 'Byte_Sized', score: 4 },
+      { name: 'GradientGary', score: 3 },
+      { name: 'Ctrl_Alt_Defeat', score: 2 },
+    ];
+    const entries = [...mock, { name: playerName.trim() || 'Challenger', score, isPlayer: true }];
+    return entries.sort((a, b) => b.score - a.score);
+  }, [screen, score, playerName]);
 
-          <div style={{ marginTop: '2.5rem' }}>
-            <button className="btn" onClick={() => setScreen('final_leaderboard')}>
-              VIEW FINAL TOURNAMENT STANDINGS 🏆
+  function commentaryLine() {
+    if (score === 5) return 'Certified AGI. Ship it.';
+    if (score >= 4) return "Suspiciously good. We're watching you.";
+    if (score >= 2) return 'Solid \u2014 somewhere between rule-based and revolutionary.';
+    return 'Needs more training data. Rewatch a few explainer videos and requeue.';
+  }
+
+  const topic = TOPICS.find((t) => t.id === topicId);
+  const TopicIcon = topic ? topic.icon : null;
+  const currentQuestion = matchQuestions[qIndex];
+  const timerPct = (timeLeft / QUESTION_TIME) * 100;
+  const timerState = timeLeft <= 4 ? 'danger' : timeLeft <= 8 ? 'warn' : 'ok';
+
+  return (
+    <div className="at-root">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+        .at-root {
+          --void: #030712;
+          --void-card: rgba(17, 24, 39, 0.7);
+          --steel: rgba(31, 41, 55, 0.55);
+          --steel-hover: rgba(55, 65, 81, 0.8);
+          --signal: hsl(263, 90%, 60%);
+          --signal-2: hsl(245, 90%, 65%);
+          --signal-glow: rgba(124, 92, 255, 0.25);
+          --coral: #ff4a6b;
+          --coral-glow: rgba(255, 74, 107, 0.25);
+          --lime: #10B981;
+          --lime-glow: rgba(16, 185, 129, 0.25);
+          --cloud: #f9fafb;
+          --cloud-dim: #9ca3af;
+          position: relative;
+          min-height: 100vh;
+          background-color: var(--void);
+          color: var(--cloud);
+          font-family: 'Outfit', sans-serif;
+          overflow-x: hidden;
+          padding: 24px 16px 48px;
+          box-sizing: border-box;
+          background-image: 
+            radial-gradient(circle at 10% 20%, hsla(263, 70%, 30%, 0.15) 0%, transparent 45%),
+            radial-gradient(circle at 90% 80%, hsla(245, 70%, 30%, 0.15) 0%, transparent 45%);
+          background-attachment: fixed;
+        }
+
+        .at-root *, .at-root *::before, .at-root *::after { box-sizing: border-box; }
+        .at-display { font-family: 'Space Grotesk', sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+        .at-mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Background glow effect orbs */
+        .at-bg-glow { position: fixed; width: 500px; height: 500px; border-radius: 50%; filter: blur(140px); pointer-events: none; z-index: 0; }
+        .at-bg-glow-1 { background: var(--signal); top: -200px; left: -150px; opacity: 0.25; animation: floatOrb 18s ease-in-out infinite alternate; }
+        .at-bg-glow-2 { background: var(--coral); bottom: -200px; right: -150px; opacity: 0.15; animation: floatOrb 22s ease-in-out infinite alternate-reverse; }
+
+        @keyframes floatOrb {
+          0% { transform: translateY(0px) scale(1); }
+          100% { transform: translateY(-40px) scale(1.15); }
+        }
+
+        .at-screen { 
+          position: relative; 
+          z-index: 1; 
+          max-width: 680px; 
+          margin: 0 auto; 
+          display: flex; 
+          flex-direction: column; 
+          gap: 24px;
+          animation: pageEntrance 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        @keyframes pageEntrance {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .at-topbar { 
+          display: flex; 
+          align-items: center; 
+          justify-content: space-between; 
+          width: 100%; 
+          padding: 8px 0;
+        }
+
+        .at-wordmark { 
+          font-family: 'JetBrains Mono', monospace; 
+          font-size: 13px; 
+          font-weight: 700;
+          letter-spacing: 0.35em; 
+          color: var(--cloud-dim);
+          text-shadow: 0 0 10px rgba(255,255,255,0.1);
+        }
+
+        .at-icon-btn {
+          width: 40px; 
+          height: 40px; 
+          border-radius: 12px;
+          display: inline-flex; 
+          align-items: center; 
+          justify-content: center;
+          background: var(--void-card); 
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: var(--cloud); 
+          cursor: pointer;
+          transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          backdrop-filter: blur(12px);
+        }
+        .at-icon-btn:hover { 
+          background: rgba(255, 255, 255, 0.08);
+          border-color: var(--signal);
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px var(--signal-glow);
+        }
+
+        .at-onair { 
+          display: inline-flex; 
+          align-items: center; 
+          gap: 8px; 
+          font-family: 'JetBrains Mono', monospace; 
+          font-size: 12px; 
+          font-weight: 700;
+          letter-spacing: 0.25em; 
+          color: var(--coral); 
+          margin-bottom: 16px; 
+          padding: 6px 14px;
+          background: rgba(255, 74, 107, 0.08);
+          border: 1px solid rgba(255, 74, 107, 0.2);
+          border-radius: 99px;
+        }
+        .at-onair-dot { 
+          width: 8px; 
+          height: 8px; 
+          border-radius: 50%; 
+          background: var(--coral); 
+          animation: at-pulse 1.8s ease-out infinite; 
+          box-shadow: 0 0 10px var(--coral);
+        }
+        
+        @keyframes at-pulse {
+          0% { box-shadow: 0 0 0 0 rgba(255,74,107,0.7); }
+          70% { box-shadow: 0 0 0 10px rgba(255,74,107,0); }
+          100% { box-shadow: 0 0 0 0 rgba(255,74,107,0); }
+        }
+
+        .at-hero { 
+          text-align: center; 
+          padding: 40px 24px; 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center;
+          background: var(--void-card);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 32px;
+          backdrop-filter: blur(20px);
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+        
+        .at-hero-title { 
+          font-size: clamp(36px, 8vw, 52px); 
+          line-height: 1.05; 
+          margin: 0;
+          font-weight: 800;
+        }
+        .at-accent-text { 
+          background: linear-gradient(135deg, var(--signal-2), #a855f7);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        .at-hero-tag { 
+          color: var(--cloud-dim); 
+          font-size: 16px; 
+          max-width: 440px; 
+          margin: 16px 0 32px; 
+          line-height: 1.5;
+        }
+
+        .at-hero-form { display: flex; flex-direction: column; align-items: center; gap: 16px; width: 100%; max-width: 400px; }
+        
+        .at-input {
+          width: 100%; 
+          padding: 14px 18px; 
+          border-radius: 14px;
+          background: rgba(0, 0, 0, 0.4); 
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: var(--cloud); 
+          font-family: inherit; 
+          font-size: 16px;
+          outline: none; 
+          transition: all 0.25s ease;
+        }
+        .at-input::placeholder { color: rgba(255, 255, 255, 0.35); }
+        .at-input:focus { 
+          border-color: var(--signal); 
+          box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.15), 0 0 15px var(--signal-glow);
+          background: rgba(0, 0, 0, 0.5);
+        }
+
+        .at-hero-actions { display: flex; flex-direction: column; gap: 12px; width: 100%; }
+
+        .at-btn {
+          display: inline-flex; 
+          align-items: center; 
+          justify-content: center;
+          gap: 10px;
+          padding: 14px 24px; 
+          border-radius: 14px;
+          font-family: inherit; 
+          font-weight: 700; 
+          font-size: 15px;
+          border: 1px solid transparent; 
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          position: relative;
+          overflow: hidden;
+        }
+        .at-btn:active { transform: scale(0.97); }
+        
+        .at-btn-primary { 
+          background: linear-gradient(135deg, var(--signal), #5b21b6); 
+          color: white; 
+          box-shadow: 0 5px 20px rgba(124, 92, 255, 0.3);
+        }
+        .at-btn-primary:hover { 
+          transform: translateY(-2px);
+          box-shadow: 0 8px 25px rgba(124, 92, 255, 0.4);
+          filter: brightness(1.1);
+        }
+        
+        .at-btn-outline { 
+          background: rgba(255, 255, 255, 0.03); 
+          border-color: rgba(255, 255, 255, 0.08); 
+          color: var(--cloud); 
+          backdrop-filter: blur(8px);
+        }
+        .at-btn-outline:hover { 
+          background: rgba(255, 255, 255, 0.08); 
+          border-color: var(--signal);
+          transform: translateY(-2px);
+        }
+
+        .at-ticker {
+          display: flex; 
+          align-items: center; 
+          gap: 12px;
+          background: var(--void-card); 
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 99px; 
+          padding: 10px 10px 10px 18px;
+          max-width: 520px; 
+          margin: 16px auto 0; 
+          width: 100%;
+          overflow: hidden;
+          backdrop-filter: blur(10px);
+        }
+        .at-ticker-tag {
+          display: inline-flex; 
+          align-items: center; 
+          gap: 6px;
+          background: var(--coral); 
+          color: var(--void); 
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px; 
+          font-weight: 800; 
+          letter-spacing: 0.1em;
+          padding: 5px 12px; 
+          border-radius: 99px; 
+          flex-shrink: 0;
+          box-shadow: 0 2px 10px var(--coral-glow);
+        }
+        .at-ticker-window { overflow: hidden; flex: 1; }
+        .at-ticker-track {
+          white-space: nowrap; 
+          font-family: 'JetBrains Mono', monospace; 
+          font-size: 12px; 
+          color: var(--cloud-dim);
+          display: inline-block; 
+          animation: at-ticker-scroll 24s linear infinite;
+        }
+        @keyframes at-ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+        .at-section-title { font-size: 28px; text-align: center; margin: 12px 0 4px; }
+        .at-section-sub { color: var(--cloud-dim); text-align: center; margin: 0 0 16px; font-size: 15px; }
+
+        .at-topic-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+        
+        .at-topic-card {
+          display: flex; 
+          flex-direction: column; 
+          align-items: flex-start; 
+          gap: 12px;
+          background: var(--void-card); 
+          border: 1px solid rgba(255, 255, 255, 0.05); 
+          border-radius: 20px;
+          padding: 22px; 
+          text-align: left; 
+          cursor: pointer; 
+          color: var(--cloud);
+          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          backdrop-filter: blur(12px);
+          position: relative;
+          overflow: hidden;
+        }
+        .at-topic-card::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 20px;
+          border: 2px solid transparent;
+          pointer-events: none;
+          transition: border-color 0.3s;
+        }
+        .at-topic-card:hover { 
+          transform: translateY(-6px); 
+          background: rgba(255, 255, 255, 0.05);
+          box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3), 0 0 20px var(--signal-glow);
+        }
+        .at-topic-card:hover::after {
+          border-color: var(--signal);
+        }
+        .at-topic-icon { 
+          width: 44px; 
+          height: 44px; 
+          border-radius: 12px; 
+          display: inline-flex; 
+          align-items: center; 
+          justify-content: center; 
+          background: rgba(124, 92, 255, 0.12); 
+          color: var(--signal-2); 
+          border: 1px solid rgba(124, 92, 255, 0.2);
+        }
+        .at-topic-name { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px; }
+        .at-topic-tag { color: var(--cloud-dim); font-size: 13.5px; line-height: 1.4; }
+
+        .at-signal { display: inline-flex; align-items: flex-end; gap: 3px; margin-top: auto; }
+        .at-signal-bar { width: 5px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); display: inline-block; }
+        .at-signal-bar-on { background: var(--signal-2); box-shadow: 0 0 8px var(--signal-glow); }
+
+        .at-matching { align-items: center; text-align: center; padding-top: 80px; }
+        .at-radar { position: relative; width: 160px; height: 160px; display: flex; align-items: center; justify-content: center; margin: 0 auto 32px; }
+        .at-radar-ring { position: absolute; inset: 0; border: 2px dashed var(--signal); border-radius: 50%; animation: at-radar 2.4s linear infinite; opacity: 0; }
+        .at-radar-ring-2 { animation-delay: 0.8s; }
+        .at-radar-ring-3 { animation-delay: 1.6s; }
+        @keyframes at-radar { 0% { transform: scale(0.3) rotate(0deg); opacity: 0.8; } 100% { transform: scale(1.5) rotate(360deg); opacity: 0; } }
+        .at-radar-core { 
+          width: 70px; 
+          height: 70px; 
+          border-radius: 50%; 
+          background: var(--void-card); 
+          border: 2px solid var(--signal); 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          color: var(--signal-2); 
+          box-shadow: 0 0 25px var(--signal-glow);
+          z-index: 10;
+        }
+        .at-matching-text { font-size: 19px; font-weight: 600; margin: 0; }
+        .at-matching-sub { color: var(--cloud-dim); font-family: 'JetBrains Mono', monospace; font-size: 14px; margin-top: 8px; }
+
+        .at-quiz-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+        .at-quiz-meta, .at-quiz-stats { display: flex; align-items: center; gap: 12px; }
+        .at-chip { 
+          background: rgba(124, 92, 255, 0.1); 
+          border: 1px solid rgba(124, 92, 255, 0.25); 
+          padding: 6px 14px; 
+          border-radius: 99px; 
+          font-size: 13px; 
+          font-weight: 600;
+          color: var(--signal-2); 
+        }
+        .at-qcount { font-size: 14px; color: var(--cloud-dim); font-weight: 500; }
+        .at-streak { display: inline-flex; align-items: center; gap: 6px; color: var(--cloud-dim); font-size: 14px; }
+        .at-streak-hot { color: var(--coral); filter: drop-shadow(0 0 8px var(--coral-glow)); }
+        .at-score { font-size: 14px; color: #34d399; font-weight: 700; }
+
+        .at-timer-track { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, 0.05); overflow: hidden; margin-top: 8px; }
+        .at-timer-fill { height: 100%; border-radius: 99px; transition: width 1s linear, background 0.3s ease; }
+        .at-timer-ok { background: #10B981; box-shadow: 0 0 10px var(--lime-glow); }
+        .at-timer-warn { background: #fbbf24; box-shadow: 0 0 10px rgba(251, 191, 36, 0.25); }
+        .at-timer-danger { background: var(--coral); box-shadow: 0 0 10px var(--coral-glow); }
+        .at-timer-note { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--coral); text-align: right; margin: -12px 0 0; font-weight: 700; }
+
+        .at-question-card { 
+          background: var(--void-card); 
+          border: 1px solid rgba(255, 255, 255, 0.06); 
+          border-radius: 24px; 
+          padding: 32px; 
+          backdrop-filter: blur(20px);
+          box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+        .at-question-text { 
+          font-family: 'Space Grotesk', sans-serif; 
+          font-size: 22px; 
+          font-weight: 700; 
+          margin: 0 0 24px; 
+          line-height: 1.4; 
+        }
+        .at-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        
+        .at-option {
+          display: flex; 
+          align-items: center; 
+          gap: 12px;
+          background: rgba(255, 255, 255, 0.02); 
+          border: 1px solid rgba(255, 255, 255, 0.08); 
+          border-radius: 16px;
+          padding: 16px 18px; 
+          text-align: left; 
+          color: var(--cloud); 
+          cursor: pointer;
+          font-family: inherit; 
+          font-size: 15px;
+          font-weight: 500;
+          transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          position: relative;
+        }
+        .at-option:hover:not(:disabled) { 
+          border-color: var(--signal); 
+          background: rgba(255, 255, 255, 0.06);
+          transform: translateY(-2px); 
+          box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .at-option:disabled { cursor: default; }
+        .at-option-letter { 
+          font-family: 'JetBrains Mono', monospace; 
+          font-size: 12px; 
+          color: var(--signal-2); 
+          background: rgba(124, 92, 255, 0.1);
+          width: 22px; 
+          height: 22px;
+          border-radius: 6px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0; 
+          border: 1px solid rgba(124, 92, 255, 0.2);
+        }
+        .at-option-correct { 
+          border-color: var(--lime) !important; 
+          background: rgba(16, 185, 129, 0.08) !important; 
+          color: var(--lime) !important; 
+          box-shadow: 0 0 15px var(--lime-glow) !important;
+        }
+        .at-option-wrong { 
+          border-color: var(--coral) !important; 
+          background: rgba(255, 74, 107, 0.08) !important; 
+          color: var(--coral) !important; 
+          box-shadow: 0 0 15px var(--coral-glow) !important;
+        }
+        .at-feedback { 
+          margin: 20px 0 0; 
+          font-size: 15px; 
+          color: var(--cloud-dim); 
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .at-opponents { 
+          background: var(--void-card); 
+          border: 1px solid rgba(255, 255, 255, 0.05); 
+          border-radius: 20px; 
+          padding: 16px 20px; 
+          backdrop-filter: blur(12px);
+        }
+        .at-opponents-label { 
+          display: inline-flex; 
+          align-items: center; 
+          gap: 8px; 
+          font-size: 13px; 
+          color: var(--cloud-dim); 
+          margin-bottom: 12px; 
+          font-weight: 600;
+        }
+        .at-opponents-list { display: flex; flex-wrap: wrap; gap: 12px; }
+        
+        .at-opponent { 
+          display: inline-flex; 
+          align-items: center; 
+          gap: 8px; 
+          font-size: 13px; 
+          color: var(--cloud-dim); 
+          background: rgba(255, 255, 255, 0.03); 
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 99px; 
+          padding: 6px 14px 6px 8px; 
+          transition: all 0.2s;
+        }
+        .at-opponent-avatar { font-size: 16px; }
+        .at-opponent-status { font-family: 'JetBrains Mono', monospace; font-size: 11px; opacity: 0.7; }
+        .at-opponent-done {
+          background: rgba(16, 185, 129, 0.06);
+          border-color: rgba(16, 185, 129, 0.2);
+          color: var(--lime);
+        }
+        .at-opponent-done .at-opponent-status { color: var(--lime); font-weight: 700; }
+
+        .at-results { text-align: center; }
+        .at-results-eyebrow { font-family: 'JetBrains Mono', monospace; letter-spacing: 0.25em; font-size: 12px; color: var(--cloud-dim); margin: 16px 0 0; font-weight: 700; }
+        .at-results-score { font-size: clamp(64px, 15vw, 92px); margin: 4px 0 0; font-weight: 800; line-height: 1; }
+        .at-results-outof { font-size: 0.4em; color: var(--cloud-dim); font-weight: 500; }
+        .at-results-line { color: var(--cloud-dim); margin: 8px 0 24px; font-size: 16px; line-height: 1.5; }
+
+        .at-badges { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+        
+        .at-badge {
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          text-align: center;
+          gap: 8px;
+          background: var(--void-card); 
+          border: 1px solid rgba(255, 255, 255, 0.04); 
+          border-radius: 18px;
+          padding: 20px 14px; 
+          color: var(--cloud-dim); 
+          opacity: 0.4;
+          transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          backdrop-filter: blur(10px);
+        }
+        .at-badge-on { 
+          opacity: 1; 
+          color: var(--cloud); 
+          border-color: var(--signal); 
+          box-shadow: 0 10px 25px rgba(124, 92, 255, 0.15);
+          background: rgba(124, 92, 255, 0.05);
+        }
+        .at-badge-on svg { color: #fbbf24; filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.4)); }
+        .at-badge-name { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13.5px; }
+        .at-badge-desc { font-size: 11px; color: var(--cloud-dim); line-height: 1.3; }
+
+        .at-leaderboard { 
+          background: var(--void-card); 
+          border: 1px solid rgba(255, 255, 255, 0.05); 
+          border-radius: 20px; 
+          padding: 10px; 
+          text-align: left; 
+          backdrop-filter: blur(12px);
+          box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        }
+        .at-lb-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; transition: background 0.2s; }
+        .at-lb-row-player { 
+          background: rgba(124, 92, 255, 0.12); 
+          border: 1px solid rgba(124, 92, 255, 0.25); 
+          box-shadow: 0 4px 15px rgba(124, 92, 255, 0.1);
+        }
+        .at-lb-rank { width: 24px; color: var(--cloud-dim); font-size: 14px; font-weight: 700; }
+        .at-lb-name { flex: 1; font-size: 15px; font-weight: 600; }
+        .at-lb-score { font-size: 14px; color: #10B981; font-weight: 700; }
+
+        .at-results-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
+
+        .at-root button:focus-visible, .at-root input:focus-visible { outline: 2px solid var(--signal-2); outline-offset: 2px; }
+
+        @media (max-width: 560px) {
+          .at-options { grid-template-columns: 1fr; }
+          .at-results-actions { flex-direction: column; }
+          .at-btn { width: 100%; justify-content: center; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .at-root *, .at-root *::before, .at-root *::after {
+            animation-duration: 0.001ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.001ms !important;
+          }
+        }
+      `}</style>
+
+      <div className="at-bg-glow at-bg-glow-1" />
+      <div className="at-bg-glow at-bg-glow-2" />
+
+      {screen === 'home' && (
+        <div className="at-screen at-home">
+          <div className="at-topbar">
+            <span className="at-wordmark">ARENA</span>
+            <button className="at-icon-btn" onClick={() => setMuted((m) => !m)} aria-label={muted ? 'Unmute sound' : 'Mute sound'}>
+              {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
             </button>
           </div>
+
+          <div className="at-hero">
+            <OnAirDot />
+            <h1 className="at-display at-hero-title">
+              AI TRIVIA <span className="at-accent-text">ARENA</span>
+            </h1>
+            <p className="at-hero-tag">Where humans and language models fight for bragging rights.</p>
+
+            <div className="at-hero-form">
+              <input
+                className="at-input"
+                type="text"
+                maxLength={18}
+                placeholder="Enter your arena name"
+                aria-label="Enter your arena name"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+              />
+              <div className="at-hero-actions">
+                <button className="at-btn at-btn-primary" onClick={startQuickMatch}>
+                  <Zap size={18} /> Quick Match
+                </button>
+                <button className="at-btn at-btn-outline" onClick={goToLobby}>
+                  <Users size={18} /> Create Room
+                </button>
+                <button className="at-btn at-btn-outline" onClick={goToLobby}>
+                  <ArrowRight size={18} /> Join Room
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <Ticker />
         </div>
       )}
 
-      {/* Screen 5: Final Tournament Leaderboard */}
-      {screen === 'final_leaderboard' && (
-        <div className="results-card" style={{ maxWidth: '850px' }}>
-          <h1 className="lobby-title" style={{ fontSize: '2.5rem', background: 'linear-gradient(135deg, var(--accent-gold) 0%, #fff 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '0.5rem' }}>
-            🏆🏆🏆 TOURNAMENT CHAMPION 🏆🏆🏆
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
-            Final Standings after all rounds completed
-          </p>
+      {screen === 'lobby' && (
+        <div className="at-screen at-lobby">
+          <div className="at-topbar">
+            <button className="at-icon-btn" onClick={() => setScreen('home')} aria-label="Back to home">
+              <ArrowLeft size={18} />
+            </button>
+            <span className="at-wordmark">ARENA</span>
+            <span style={{ width: 36 }} />
+          </div>
+          <h2 className="at-display at-section-title">Pick your battlefield</h2>
+          <p className="at-section-sub">Five channels. Twenty-five questions. Zero mercy.</p>
+          <div className="at-topic-grid">
+            {TOPICS.map((t) => {
+              const Icon = t.icon;
+              return (
+                <button key={t.id} className="at-topic-card" onClick={() => beginMatch(t.id)}>
+                  <span className="at-topic-icon"><Icon size={22} /></span>
+                  <span className="at-topic-name">{t.name}</span>
+                  <span className="at-topic-tag">{t.tag}</span>
+                  <SignalBars level={t.signal} />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-          {/* Visual Podium */}
-          {(() => {
-            const goldPlayer = finalLeaderboard[0] || null;
-            const silverPlayer = finalLeaderboard[1] || null;
-            const bronzePlayer = finalLeaderboard[2] || null;
-            return (
-              <div className="podium-container">
-                {silverPlayer && (
-                  <div className="podium-step second">
-                    <span className="podium-badge">🥈</span>
-                    <span className="podium-name" title={silverPlayer.name}>{silverPlayer.name}</span>
-                    <span className="podium-points">{silverPlayer.total} pts</span>
-                  </div>
-                )}
-                {goldPlayer && (
-                  <div className="podium-step first">
-                    <span className="podium-badge">🥇</span>
-                    <span className="podium-name" title={goldPlayer.name}>{goldPlayer.name}</span>
-                    <span className="podium-points">{goldPlayer.total} pts</span>
-                  </div>
-                )}
-                {bronzePlayer && (
-                  <div className="podium-step third">
-                    <span className="podium-badge">🥉</span>
-                    <span className="podium-name" title={bronzePlayer.name}>{bronzePlayer.name}</span>
-                    <span className="podium-points">{bronzePlayer.total} pts</span>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+      {screen === 'matching' && (
+        <div className="at-screen at-matching">
+          <div className="at-radar">
+            <span className="at-radar-ring" />
+            <span className="at-radar-ring at-radar-ring-2" />
+            <span className="at-radar-ring at-radar-ring-3" />
+            <span className="at-radar-core">{TopicIcon && <TopicIcon size={26} />}</span>
+          </div>
+          <p className="at-matching-text">{"Scanning the arena for worthy opponents..."}</p>
+          <p className="at-matching-sub">{topic ? topic.name : ''}</p>
+        </div>
+      )}
 
-          <h2 style={{ fontSize: '1.6rem', marginBottom: '1rem', textAlign: 'left', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem' }}>
-            Complete Final Rankings
-          </h2>
-          <div className="results-table-container" style={{ maxHeight: '400px' }}>
-            <table className="results-table">
-              <thead>
-                <tr>
-                  <th>Pos</th>
-                  <th>Player</th>
-                  <th>AI Chat (G1)</th>
-                  <th>3D Tech (G2)</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {finalLeaderboard.map((row, idx) => (
-                  <tr key={idx} className={row.rank === 1 ? 'highlight-winner' : ''}>
-                    <td style={{ fontWeight: 700 }}>#{row.rank}</td>
-                    <td>{row.name} {row.rank === 1 && '👑'}</td>
-                    <td>{row.game_1}</td>
-                    <td>{row.game_2}</td>
-                    <td style={{ fontWeight: 700, color: 'hsl(220, 95%, 75%)' }}>{row.total}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {screen === 'quiz' && currentQuestion && (
+        <div className="at-screen at-quiz">
+          <div className="at-quiz-header">
+            <div className="at-quiz-meta">
+              <span className="at-chip">{topic ? topic.name : ''}</span>
+              <span className="at-mono at-qcount">Q{qIndex + 1}/{matchQuestions.length}</span>
+            </div>
+            <div className="at-quiz-stats">
+              <span className={`at-streak${streak >= 3 ? ' at-streak-hot' : ''}`}>
+                <Flame size={16} /> {streak}
+              </span>
+              <span className="at-mono at-score">{score} pts</span>
+              <button className="at-icon-btn" onClick={() => setMuted((m) => !m)} aria-label={muted ? 'Unmute sound' : 'Mute sound'}>
+                {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+              </button>
+            </div>
           </div>
 
-          <div className="actions-row">
-            {isAdmin ? (
-              <button className="btn" onClick={handlePlayAgain} style={{ padding: '0.8rem 2.5rem' }}>
-                PLAY AGAIN 🔄
-              </button>
-            ) : (
-              <div className="feedback-alert timeout" style={{ padding: '0.8rem 2rem', fontStyle: 'italic' }}>
-                Waiting for host to restart the game...
-              </div>
+          <div>
+            <div className="at-timer-track">
+              <div className={`at-timer-fill at-timer-${timerState}`} style={{ width: `${timerPct}%` }} />
+            </div>
+            {timerState === 'danger' && !answered && <p className="at-timer-note">brace yourself</p>}
+          </div>
+
+          <div className="at-question-card">
+            <p className="at-question-text">{currentQuestion.q}</p>
+            <div className="at-options">
+              {currentQuestion.options.map((opt, i) => {
+                let state = '';
+                if (answered) {
+                  if (i === currentQuestion.correct) state = 'correct';
+                  else if (i === selected) state = 'wrong';
+                }
+                return (
+                  <button
+                    key={i}
+                    className={`at-option${state ? ` at-option-${state}` : ''}`}
+                    onClick={() => handleAnswer(i)}
+                    disabled={answered}
+                  >
+                    <span className="at-option-letter">{String.fromCharCode(65 + i)}</span>
+                    <span className="at-option-text">{opt}</span>
+                    {state === 'correct' && <Check size={18} />}
+                    {state === 'wrong' && <X size={18} />}
+                  </button>
+                );
+              })}
+            </div>
+            {answered && (
+              <p className="at-feedback">
+                {selected === currentQuestion.correct ? <Award size={18} className="at-streak-hot" /> : <HelpCircle size={18} className="at-timer-danger" />}
+                {feedback}
+              </p>
             )}
-            <button className="btn btn-secondary" onClick={exportToCSV}>
-              <span>📥</span> EXPORT LEADERBOARD
+          </div>
+
+          <div className="at-opponents">
+            <span className="at-opponents-label"><Users size={14} /> In the arena</span>
+            <div className="at-opponents-list">
+              {bots.map((b) => (
+                <span key={b.name} className={`at-opponent${botStatus[b.name] === 'answered' ? ' at-opponent-done' : ''}`}>
+                  <span className="at-opponent-avatar">{b.avatar}</span>
+                  {b.name.replace(/_/g, ' ')}
+                  <span className="at-opponent-status">{botStatus[b.name] === 'answered' ? 'answered' : "thinking..."}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {screen === 'results' && (
+        <div className="at-screen at-results">
+          <p className="at-results-eyebrow">MATCH COMPLETE</p>
+          <h2 className="at-display at-results-score">{score}<span className="at-results-outof">/{matchQuestions.length || 5}</span></h2>
+          <p className="at-results-line">{commentaryLine()}</p>
+
+          <div className="at-badges">
+            {BADGES.map((b) => {
+              const earned = earnedBadges.some((e) => e.id === b.id);
+              const Icon = b.icon;
+              return (
+                <div key={b.id} className={`at-badge${earned ? ' at-badge-on' : ''}`}>
+                  <Icon size={20} />
+                  <span className="at-badge-name">{b.name}</span>
+                  <span className="at-badge-desc">{b.desc}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="at-leaderboard">
+            {leaderboard.map((row, i) => (
+              <div key={row.name + i} className={`at-lb-row${row.isPlayer ? ' at-lb-row-player' : ''}`}>
+                <span className="at-mono at-lb-rank">{i + 1}</span>
+                <span className="at-lb-name">{row.name}</span>
+                <span className="at-mono at-lb-score">{row.score}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="at-results-actions">
+            <button className="at-btn at-btn-primary" onClick={() => beginMatch(topicId)}>
+              <Play size={18} /> Rematch
+            </button>
+            <button className="at-btn at-btn-outline" onClick={() => setScreen('home')}>
+              <ArrowLeft size={18} /> Back to arena
             </button>
           </div>
         </div>
@@ -1031,5 +1128,3 @@ function App() {
     </div>
   );
 }
-
-export default App;
