@@ -1,3 +1,23 @@
+const cluster = require('cluster');
+const numCPUs = require('os').cpus().length;
+
+// Primary process clustering support
+if (cluster.isPrimary && process.env.CLUSTER_ENABLED === 'true') {
+  console.log(`🚀 Primary process ${process.pid} is running`);
+  
+  // Fork workers
+  const workerCount = process.env.WORKER_COUNT ? parseInt(process.env.WORKER_COUNT, 10) : Math.min(numCPUs, 4);
+  for (let i = 0; i < workerCount; i++) {
+    cluster.fork();
+  }
+
+  cluster.on('exit', (worker, code, signal) => {
+    console.log(`⚠️ Worker process ${worker.process.pid} died. Forking a new one...`);
+    cluster.fork();
+  });
+  return; // Stop execution of the primary process here
+}
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -6,10 +26,16 @@ const { Pool } = require('pg');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+const compression = require('compression');
+const Redis = require('ioredis');
+const { createAdapter } = require('@socket.io/redis-adapter');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Request compression middleware for optimization under scale
+app.use(compression());
 
 // Enable CORS for frontend origin
 const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -21,14 +47,111 @@ app.use(cors({
 
 app.use(express.json());
 
+// Redis client setup for adapter and caching
+let pubClient = null;
+let subClient = null;
+let redisConnected = false;
+
+const redisUrl = process.env.REDIS_URL;
+if (redisUrl) {
+  try {
+    pubClient = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      connectTimeout: 5000
+    });
+    subClient = pubClient.duplicate();
+    
+    pubClient.on('connect', () => {
+      console.log('✅ Connected to Redis (Publisher)');
+      redisConnected = true;
+    });
+    
+    pubClient.on('error', (err) => {
+      console.error('❌ Redis error:', err.message);
+    });
+  } catch (err) {
+    console.error('❌ Failed to initialize Redis clients:', err.message);
+  }
+} else {
+  console.log('ℹ️ DATABASE_URL/REDIS_URL not detected. Running with In-Memory fallback.');
+}
+
+// In-Memory cache fallback structure
+const inMemoryCache = new Map();
+
+const cache = {
+  get: async (key) => {
+    if (redisConnected && pubClient) {
+      try {
+        return await pubClient.get(key);
+      } catch (e) {
+        console.error('Redis cache get error:', e.message);
+      }
+    }
+    const item = inMemoryCache.get(key);
+    if (item && item.expiry > Date.now()) {
+      return item.value;
+    }
+    return null;
+  },
+  
+  set: async (key, value, ttlSeconds) => {
+    if (redisConnected && pubClient) {
+      try {
+        if (ttlSeconds) {
+          await pubClient.set(key, value, 'EX', ttlSeconds);
+        } else {
+          await pubClient.set(key, value);
+        }
+        return;
+      } catch (e) {
+        console.error('Redis cache set error:', e.message);
+      }
+    }
+    inMemoryCache.set(key, {
+      value,
+      expiry: ttlSeconds ? Date.now() + (ttlSeconds * 1000) : Infinity
+    });
+  },
+  
+  del: async (key) => {
+    if (redisConnected && pubClient) {
+      try {
+        await pubClient.del(key);
+        return;
+      } catch (e) {
+        console.error('Redis cache del error:', e.message);
+      }
+    }
+    inMemoryCache.delete(key);
+  }
+};
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: frontendUrl,
     methods: ['GET', 'POST'],
     credentials: true
+  },
+  // Compression & scaling configurations for Socket.io
+  perMessageDeflate: {
+    threshold: 1024
+  },
+  pingTimeout: 20000,
+  pingInterval: 25000,
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true
   }
 });
+
+// Setup socket.io redis adapter if connected
+if (redisConnected && pubClient && subClient) {
+  io.adapter(createAdapter(pubClient, subClient));
+  console.log('🔌 Socket.io Redis Adapter initialized successfully.');
+}
+
 
 // Seed data definition for 5 AIs and 15 questions
 const seedAis = [
@@ -103,6 +226,9 @@ if (!dbUrl) {
 } else {
   pool = new Pool({
     connectionString: dbUrl,
+    max: 100, // Connection pooling: 50-100 connections
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
   });
 
@@ -256,6 +382,53 @@ async function initializeDatabase() {
       }
       await pool.query("SELECT setval(pg_get_serial_sequence('questions', 'id'), coalesce(max(id), 1)) FROM questions");
     }
+
+    // 5. Create vote_trends table if it does not exist
+    console.log('🔄 Verifying and creating vote_trends table & indices...');
+    await pool.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp";`).catch(() => {});
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vote_trends (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        game_session_id UUID NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+        game_number INT NOT NULL,
+        question_number INT NOT NULL,
+        option_1_votes INT DEFAULT 0,
+        option_2_votes INT DEFAULT 0,
+        option_3_votes INT DEFAULT 0,
+        option_4_votes INT DEFAULT 0,
+        total_votes INT DEFAULT 0,
+        revealed_at TIMESTAMP,
+        correct_option INT,
+        UNIQUE (game_session_id, game_number, question_number)
+      );
+    `).catch(async () => {
+      // Fallback for older PG versions
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS vote_trends (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          game_session_id UUID NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+          game_number INT NOT NULL,
+          question_number INT NOT NULL,
+          option_1_votes INT DEFAULT 0,
+          option_2_votes INT DEFAULT 0,
+          option_3_votes INT DEFAULT 0,
+          option_4_votes INT DEFAULT 0,
+          total_votes INT DEFAULT 0,
+          revealed_at TIMESTAMP,
+          correct_option INT,
+          UNIQUE (game_session_id, game_number, question_number)
+        );
+      `);
+    });
+
+    // 6. Create performance indexes
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_vote_trends_game_question ON vote_trends (game_session_id, game_number, question_number);`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_player_scores_game_session ON player_scores (game_session_id);`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_player_scores_cumulative ON player_scores (cumulative_score DESC);`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_answer_log_session ON answer_log (game_session_id);`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_answer_log_player ON answer_log (player_id);`).catch(() => {});
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_answer_log_question ON answer_log (game_number, question_number);`).catch(() => {});
+
     console.log('🚀 Database initialization complete.');
   } catch (err) {
     console.error('❌ Error initializing database:', err);
@@ -493,29 +666,154 @@ const db = {
     }
   },
 
+  recordAnswersBatch: async (roomCode, answersList) => {
+    if (useMockDb) {
+      const session = mockDb.game_sessions[roomCode];
+      if (!session) return;
+      
+      for (const ans of answersList) {
+        const { playerId, gameNumber, questionNumber, selectedOption, isCorrect } = ans;
+        const scoreKey = `${session.id}-${playerId}`;
+        const playerScore = mockDb.player_scores[scoreKey];
+        if (playerScore) {
+          if (isCorrect) {
+            playerScore.total_score += 1;
+            playerScore.correct_answers_count += 1;
+            playerScore.cumulative_score += 1;
+            if (gameNumber === 2) {
+              playerScore.game_2_score += 1;
+            } else {
+              playerScore.game_1_score += 1;
+            }
+          }
+          playerScore.updated_at = new Date();
+        }
+
+        mockDb.answer_logs.push({
+          id: uuidv4(),
+          game_session_id: session.id,
+          player_id: playerId,
+          game_number: gameNumber,
+          question_number: questionNumber,
+          selected_option: selectedOption,
+          is_correct: isCorrect,
+          answered_at: new Date()
+        });
+      }
+      return;
+    }
+
+    if (answersList.length === 0) return;
+
+    try {
+      const sessionRes = await pool.query('SELECT id FROM game_sessions WHERE room_code = $1', [roomCode]);
+      if (sessionRes.rows.length === 0) return;
+      const sessionId = sessionRes.rows[0].id;
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+
+        // 1. Separate correct answers to increment scores in a batch / single query
+        const correctPlayerIds = answersList.filter(a => a.isCorrect).map(a => a.playerId);
+        if (correctPlayerIds.length > 0) {
+          const gameCol = answersList[0].gameNumber === 2 ? 'game_2_score' : 'game_1_score';
+          await client.query(
+            `UPDATE player_scores 
+             SET total_score = total_score + 1, 
+                 cumulative_score = cumulative_score + 1, 
+                 correct_answers_count = correct_answers_count + 1, 
+                 ${gameCol} = ${gameCol} + 1, 
+                 updated_at = CURRENT_TIMESTAMP 
+             WHERE game_session_id = $1 AND player_id = ANY($2)`,
+            [sessionId, correctPlayerIds]
+          );
+        }
+
+        // 2. Build bulk insert query for answer_log
+        const queryValues = [];
+        const valuePlaceholders = [];
+        let paramIdx = 1;
+
+        for (const ans of answersList) {
+          const logId = uuidv4();
+          queryValues.push(logId, sessionId, ans.playerId, ans.gameNumber, ans.questionNumber, ans.selectedOption, ans.isCorrect);
+          valuePlaceholders.push(`($${paramIdx}, $${paramIdx+1}, $${paramIdx+2}, $${paramIdx+3}, $${paramIdx+4}, $${paramIdx+5}, $${paramIdx+6})`);
+          paramIdx += 7;
+        }
+
+        const bulkInsertQuery = `
+          INSERT INTO answer_log (id, game_session_id, player_id, game_number, question_number, selected_option, is_correct)
+          VALUES ${valuePlaceholders.join(', ')}
+          ON CONFLICT (game_session_id, player_id, game_number, question_number) DO NOTHING
+        `;
+
+        await client.query(bulkInsertQuery, queryValues);
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Error during batch answer recording:', err);
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('Error in recordAnswersBatch:', err);
+    }
+  },
+
   getQuestions: async (gameNumber = 1) => {
+    const cacheKey = `questions:${gameNumber}`;
+    try {
+      const cached = await cache.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      console.error('Error reading questions cache:', err);
+    }
+
+    let questions;
     if (useMockDb) {
       const qs = mockDb.questions.filter(q => (q.game_number || 1) === gameNumber);
-      return qs.map(q => {
+      questions = qs.map(q => {
         if (q.ai_app_id) {
           const app = seedAis.find(a => a.id === q.ai_app_id);
           return { ...q, logo_url: app ? app.logo_url : '' };
         }
         return { ...q, logo_url: '' };
       });
+    } else {
+      const res = await pool.query(
+        `SELECT q.*, a.logo_url 
+         FROM questions q 
+         LEFT JOIN ai_apps a ON q.ai_app_id = a.id 
+         WHERE q.game_number = $1
+         ORDER BY q.question_number`,
+        [gameNumber]
+      );
+      questions = res.rows;
     }
-    const res = await pool.query(
-      `SELECT q.*, a.logo_url 
-       FROM questions q 
-       LEFT JOIN ai_apps a ON q.ai_app_id = a.id 
-       WHERE q.game_number = $1
-       ORDER BY q.question_number`,
-      [gameNumber]
-    );
-    return res.rows;
+
+    try {
+      await cache.set(cacheKey, JSON.stringify(questions), 3600); // 1 hour TTL
+    } catch (err) {
+      console.error('Error writing questions cache:', err);
+    }
+    return questions;
   },
 
   getLeaderboard: async (roomCode) => {
+    const cacheKey = `leaderboard:${roomCode}`;
+    try {
+      const cached = await cache.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      console.error('Error reading leaderboard cache:', err);
+    }
+
+    let leaderboard;
     if (useMockDb) {
       const session = mockDb.game_sessions[roomCode];
       if (!session) return [];
@@ -529,7 +827,7 @@ const db = {
           correct_answers_count: s.correct_answers_count
         }));
       scores.sort((a, b) => b.cumulative_score - a.cumulative_score || b.correct_answers_count - a.correct_answers_count);
-      return scores.map((s, idx) => ({
+      leaderboard = scores.map((s, idx) => ({
         rank: idx + 1,
         player_name: s.player_name,
         game_1_score: s.game_1_score,
@@ -537,28 +835,35 @@ const db = {
         cumulative_score: s.cumulative_score,
         total_score: s.cumulative_score // keep total_score key for legacy code compatibility
       }));
+    } else {
+      const sessionRes = await pool.query('SELECT id FROM game_sessions WHERE room_code = $1', [roomCode]);
+      if (sessionRes.rows.length === 0) return [];
+      const sessionId = sessionRes.rows[0].id;
+
+      const res = await pool.query(
+        `SELECT player_name, game_1_score, game_2_score, cumulative_score, correct_answers_count 
+         FROM player_scores 
+         WHERE game_session_id = $1 
+         ORDER BY cumulative_score DESC, correct_answers_count DESC, updated_at ASC`,
+        [sessionId]
+      );
+
+      leaderboard = res.rows.map((row, index) => ({
+        rank: index + 1,
+        player_name: row.player_name,
+        game_1_score: row.game_1_score,
+        game_2_score: row.game_2_score,
+        cumulative_score: row.cumulative_score,
+        total_score: row.cumulative_score // keep total_score key for legacy code compatibility
+      }));
     }
 
-    const sessionRes = await pool.query('SELECT id FROM game_sessions WHERE room_code = $1', [roomCode]);
-    if (sessionRes.rows.length === 0) return [];
-    const sessionId = sessionRes.rows[0].id;
-
-    const res = await pool.query(
-      `SELECT player_name, game_1_score, game_2_score, cumulative_score, correct_answers_count 
-       FROM player_scores 
-       WHERE game_session_id = $1 
-       ORDER BY cumulative_score DESC, correct_answers_count DESC, updated_at ASC`,
-      [sessionId]
-    );
-
-    return res.rows.map((row, index) => ({
-      rank: index + 1,
-      player_name: row.player_name,
-      game_1_score: row.game_1_score,
-      game_2_score: row.game_2_score,
-      cumulative_score: row.cumulative_score,
-      total_score: row.cumulative_score // keep total_score key for legacy code compatibility
-    }));
+    try {
+      await cache.set(cacheKey, JSON.stringify(leaderboard), 5); // 5 seconds TTL
+    } catch (err) {
+      console.error('Error writing leaderboard cache:', err);
+    }
+    return leaderboard;
   },
 
   updateFinalRanks: async (roomCode) => {
@@ -607,6 +912,9 @@ class GameRunner {
     this.timer = 15;
     this.timerInterval = null;
     this.answersReceived = {}; // playerId -> selectedOption
+    this.voteTrends = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    this.lastVoteTrendTime = 0;
+    this.voteTrendTimeout = null;
   }
 
   addPlayer(socketId, playerId, name, isAdmin) {
@@ -672,6 +980,13 @@ class GameRunner {
   async loadQuestion(questionNumber) {
     this.currentQuestionNumber = questionNumber;
     this.answersReceived = {};
+    this.voteTrends = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    this.lastVoteTrendTime = 0;
+    if (this.voteTrendTimeout) {
+      clearTimeout(this.voteTrendTimeout);
+      this.voteTrendTimeout = null;
+    }
+
     const question = this.questions.find(q => q.question_number === questionNumber);
     if (!question) {
       console.error(`Question ${questionNumber} not found!`);
@@ -724,27 +1039,26 @@ class GameRunner {
       return; 
     }
 
+    // Save answer choice in temporary buffer for scoring later
     this.answersReceived[playerId] = selectedOption;
+    
+    // Increment vote count for trend tracking
+    if (selectedOption >= 1 && selectedOption <= 4) {
+      this.voteTrends[selectedOption]++;
+    }
 
     const question = this.questions.find(q => q.question_number === this.currentQuestionNumber);
     if (!question) return;
 
-    const isCorrect = selectedOption === question.correct_option;
-    
-    // Save to Database / Mock
-    await db.recordAnswer(this.roomCode, playerId, this.currentGameNumber, this.currentQuestionNumber, selectedOption, isCorrect);
-
-    // Send immediate feedback to this client
-    const correctText = question[`option_${question.correct_option}`];
-    socket.emit('answer_feedback', {
-      is_correct: isCorrect,
-      correct_option: question.correct_option,
-      correct_answer_text: correctText
+    // Emit 'answer_submitted' to player ONLY (for checkmark / lock state)
+    socket.emit('answer_submitted', {
+      status: "submitted",
+      message: "Your answer received",
+      player_id: playerId
     });
 
-    // Broadcast leaderboard update within 100ms
-    const leaderboard = await db.getLeaderboard(this.roomCode);
-    this.io.to(this.roomCode).emit('leaderboard_update', leaderboard);
+    // Trigger a throttled broadcast of vote trends to everyone in the room
+    this.triggerVoteTrendUpdate();
 
     // Check if all active connected players have answered the question
     try {
@@ -766,22 +1080,147 @@ class GameRunner {
     }
   }
 
+  triggerVoteTrendUpdate() {
+    const now = Date.now();
+    if (!this.lastVoteTrendTime || now - this.lastVoteTrendTime >= 500) {
+      this.broadcastVoteTrends();
+    } else {
+      if (this.voteTrendTimeout) return;
+      const delay = 500 - (now - this.lastVoteTrendTime);
+      this.voteTrendTimeout = setTimeout(() => {
+        this.voteTrendTimeout = null;
+        this.broadcastVoteTrends();
+      }, delay);
+    }
+  }
+
+  async broadcastVoteTrends() {
+    this.lastVoteTrendTime = Date.now();
+    
+    const roomSockets = this.io.adapter.rooms.get(this.roomCode);
+    const activePlayers = this.players.filter(p => !p.isAdmin);
+    const totalSubmitted = Object.keys(this.answersReceived).length;
+    const playersRemaining = Math.max(0, activePlayers.length - totalSubmitted);
+
+    const trendData = {
+      game_number: this.currentGameNumber,
+      question_number: this.currentQuestionNumber,
+      option_1_votes: this.voteTrends[1] || 0,
+      option_2_votes: this.voteTrends[2] || 0,
+      option_3_votes: this.voteTrends[3] || 0,
+      option_4_votes: this.voteTrends[4] || 0,
+      total_submitted: totalSubmitted,
+      players_remaining: playersRemaining,
+      timer_seconds: this.timer
+    };
+
+    this.io.to(this.roomCode).emit('vote_trend_update', trendData);
+  }
+
   async revealAnswer() {
+    if (this.voteTrendTimeout) {
+      clearTimeout(this.voteTrendTimeout);
+      this.voteTrendTimeout = null;
+    }
+
     const question = this.questions.find(q => q.question_number === this.currentQuestionNumber);
     if (!question) return;
 
-    const correctText = question[`option_${question.correct_option}`];
+    // Process all submissions in a single batch update to database/scores
+    const answersToSave = [];
+    for (const [pId, selectedOpt] of Object.entries(this.answersReceived)) {
+      const isCorrect = selectedOpt === question.correct_option;
+      answersToSave.push({
+        playerId: pId,
+        gameNumber: this.currentGameNumber,
+        questionNumber: this.currentQuestionNumber,
+        selectedOption: selectedOpt,
+        isCorrect: isCorrect
+      });
+    }
+
+    if (answersToSave.length > 0) {
+      await db.recordAnswersBatch(this.roomCode, answersToSave);
+    }
+
+    // Clear leaderboard cache since scores have changed
+    await cache.del(`leaderboard:${this.roomCode}`);
     const leaderboard = await db.getLeaderboard(this.roomCode);
 
-    // Send answer_reveal event
-    this.io.to(this.roomCode).emit('answer_reveal', {
-      correct_option: question.correct_option,
-      correct_answer_text: correctText,
-      explanation: question.explanation || '',
-      leaderboard: leaderboard
+    const correctText = question[`option_${question.correct_option}`];
+    const totalVotes = Object.values(this.voteTrends).reduce((sum, v) => sum + v, 0) || 1;
+    
+    const finalVoteDistribution = {
+      option_1: { votes: this.voteTrends[1] || 0, percentage: parseFloat((((this.voteTrends[1] || 0) / totalVotes) * 100).toFixed(1)) },
+      option_2: { votes: this.voteTrends[2] || 0, percentage: parseFloat((((this.voteTrends[2] || 0) / totalVotes) * 100).toFixed(1)) },
+      option_3: { votes: this.voteTrends[3] || 0, percentage: parseFloat((((this.voteTrends[3] || 0) / totalVotes) * 100).toFixed(1)) },
+      option_4: { votes: this.voteTrends[4] || 0, percentage: parseFloat((((this.voteTrends[4] || 0) / totalVotes) * 100).toFixed(1)) }
+    };
+
+    // Save final stats in database if using persistent storage
+    if (!useMockDb) {
+      try {
+        const sessionRes = await pool.query('SELECT id FROM game_sessions WHERE room_code = $1', [this.roomCode]);
+        if (sessionRes.rows.length > 0) {
+          const sessionId = sessionRes.rows[0].id;
+          await pool.query(`
+            INSERT INTO vote_trends (game_session_id, game_number, question_number, option_1_votes, option_2_votes, option_3_votes, option_4_votes, total_votes, revealed_at, correct_option)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP, $9)
+            ON CONFLICT (game_session_id, game_number, question_number) DO UPDATE SET
+              option_1_votes = EXCLUDED.option_1_votes,
+              option_2_votes = EXCLUDED.option_2_votes,
+              option_3_votes = EXCLUDED.option_3_votes,
+              option_4_votes = EXCLUDED.option_4_votes,
+              total_votes = EXCLUDED.total_votes,
+              revealed_at = EXCLUDED.revealed_at,
+              correct_option = EXCLUDED.correct_option
+          `, [sessionId, this.currentGameNumber, this.currentQuestionNumber, 
+              this.voteTrends[1] || 0, this.voteTrends[2] || 0, this.voteTrends[3] || 0, this.voteTrends[4] || 0, 
+              totalVotes, question.correct_option]);
+        }
+      } catch (err) {
+        console.error('Error logging final vote trends:', err.message);
+      }
+    }
+
+    // Emit customized answer_reveal to each player
+    this.players.forEach(p => {
+      const selected = this.answersReceived[p.playerId];
+      const isCorrect = selected === question.correct_option;
+      const scoreChange = isCorrect ? 1 : 0;
+      
+      const payload = {
+        game_number: this.currentGameNumber,
+        question_number: this.currentQuestionNumber,
+        correct_option: question.correct_option,
+        correct_answer_text: correctText,
+        is_your_answer_correct: selected !== undefined ? isCorrect : false,
+        your_score_change: scoreChange,
+        final_vote_distribution: finalVoteDistribution,
+        question_explanation: question.explanation || '',
+        leaderboard: leaderboard,
+        timestamp: Date.now()
+      };
+      
+      this.io.to(p.socketId).emit('answer_reveal', payload);
     });
 
-    // Wait 3 seconds, then proceed (given extra second for explanation view)
+    // Send answer_reveal to host as well
+    const admin = this.getAdmin();
+    if (admin) {
+      this.io.to(admin.socketId).emit('answer_reveal', {
+        game_number: this.currentGameNumber,
+        question_number: this.currentQuestionNumber,
+        correct_option: question.correct_option,
+        correct_answer_text: correctText,
+        final_vote_distribution: finalVoteDistribution,
+        question_explanation: question.explanation || '',
+        leaderboard: leaderboard,
+        timestamp: Date.now()
+      });
+    }
+
+    // Wait 8 seconds, then proceed to the next question
     setTimeout(async () => {
       if (this.currentQuestionNumber < 10) {
         this.loadQuestion(this.currentQuestionNumber + 1);
@@ -792,7 +1231,7 @@ class GameRunner {
           await this.finishGame2();
         }
       }
-    }, 3000);
+    }, 8000);
   }
 
   async finishGame1() {

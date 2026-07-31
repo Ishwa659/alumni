@@ -108,6 +108,191 @@ function AiLogo({ url, name }) {
 }
 
 
+// Import useMemo, useCallback from React if not already imported
+import { useMemo, useCallback } from 'react';
+
+// Live Voting Trend display component (poll bar chart)
+const VotingTrendDisplay = React.memo(({ trend }) => {
+  if (!trend) return null;
+
+  const {
+    option_1_votes = 0,
+    option_2_votes = 0,
+    option_3_votes = 0,
+    option_4_votes = 0,
+    total_submitted = 0,
+    players_remaining = 0,
+    timer_seconds = 0
+  } = trend;
+
+  const total = total_submitted + players_remaining;
+  const votes = [option_1_votes, option_2_votes, option_3_votes, option_4_votes];
+
+  return (
+    <div className="voting-trend-container">
+      <h3>LIVE VOTING TREND</h3>
+      <div className="voting-trend-bars">
+        {votes.map((count, idx) => {
+          const percentage = total_submitted > 0 ? ((count / total_submitted) * 100).toFixed(1) : '0.0';
+          return (
+            <div key={idx} className="trend-bar-row">
+              <span className="trend-option-label">Option {idx + 1}</span>
+              <div className="trend-bar-wrapper">
+                <div 
+                  className="trend-bar" 
+                  style={{ width: `${percentage}%` }}
+                />
+              </div>
+              <span className="trend-vote-count">{count} votes ({percentage}%)</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="trend-footer">
+        <span>Total submitted: {total_submitted}/{total} players</span>
+        <span>Remaining: {players_remaining}</span>
+        <span>Timer: {timer_seconds}s</span>
+      </div>
+    </div>
+  );
+});
+
+// Custom virtualized scroll leaderboard for 500+ concurrent players to avoid DOM lag
+const VirtualLeaderboard = React.memo(({ leaderboard, currentGameNumber, playerName }) => {
+  const containerRef = useRef(null);
+  const [scrollTop, setScrollTop] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(400);
+
+  useEffect(() => {
+    if (containerRef.current) {
+      setContainerHeight(containerRef.current.clientHeight || 400);
+      const handleResize = () => {
+        if (containerRef.current) {
+          setContainerHeight(containerRef.current.clientHeight || 400);
+        }
+      };
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
+  const handleScroll = useCallback((e) => {
+    setScrollTop(e.currentTarget.scrollTop);
+  }, []);
+
+  const rowHeight = 52;
+  const overscan = 5;
+
+  const totalRows = leaderboard.length;
+  const totalHeight = totalRows * rowHeight;
+
+  const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+  const endIndex = Math.min(totalRows - 1, Math.floor((scrollTop + containerHeight) / rowHeight) + overscan);
+
+  const visibleRows = useMemo(() => {
+    const rows = [];
+    for (let i = startIndex; i <= endIndex; i++) {
+      if (leaderboard[i]) {
+        rows.push({
+          index: i,
+          player: leaderboard[i],
+          style: {
+            position: 'absolute',
+            top: `${i * rowHeight}px`,
+            left: 0,
+            right: 0,
+            height: `${rowHeight}px`,
+          }
+        });
+      }
+    }
+    return rows;
+  }, [leaderboard, startIndex, endIndex, rowHeight]);
+
+  return (
+    <div className="virtual-leaderboard-container">
+      <div className="leaderboard-title">
+        <span>Leaderboard</span>
+        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>Live Updates ({totalRows} players)</span>
+      </div>
+      <div 
+        className="leaderboard-table-header"
+        style={{
+          gridTemplateColumns: currentGameNumber === 1 ? '50px 1fr 50px 60px' : '50px 1fr 45px 45px 60px',
+          paddingRight: '15px'
+        }}
+      >
+        <span className="hdr-rank">Pos</span>
+        <span className="hdr-name" style={{ textAlign: 'left' }}>Player</span>
+        {currentGameNumber === 1 ? (
+          <>
+            <span className="hdr-score">G1</span>
+            <span className="hdr-score">Total</span>
+          </>
+        ) : (
+          <>
+            <span className="hdr-score">G1</span>
+            <span className="hdr-score">G2</span>
+            <span className="hdr-score">Total</span>
+          </>
+        )}
+      </div>
+
+      <div 
+        ref={containerRef}
+        className="leaderboard-rows-scroll"
+        onScroll={handleScroll}
+        style={{
+          position: 'relative',
+          height: '400px',
+          overflowY: 'auto',
+        }}
+      >
+        <div style={{ height: `${totalHeight}px`, width: '100%', position: 'relative' }}>
+          {visibleRows.map(({ index, player, style }) => {
+            const isCurrent = player.player_name === playerName;
+            return (
+              <div 
+                key={index} 
+                className={`leaderboard-row-grid ${isCurrent ? 'current-player' : ''}`}
+                style={{
+                  ...style,
+                  gridTemplateColumns: currentGameNumber === 1 ? '50px 1fr 50px 60px' : '50px 1fr 45px 45px 60px',
+                  boxSizing: 'border-box',
+                  display: 'grid',
+                  alignItems: 'center'
+                }}
+              >
+                <span className="leaderboard-rank">#{player.rank}</span>
+                <span className="leaderboard-name" style={{ textAlign: 'left' }} title={player.player_name}>
+                  {player.player_name}
+                </span>
+                {currentGameNumber === 1 ? (
+                  <>
+                    <span className="leaderboard-score">{player.game_1_score || 0}</span>
+                    <span className="leaderboard-score highlight">{player.cumulative_score || player.total_score || 0}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="leaderboard-score">{player.game_1_score || 0}</span>
+                    <span className="leaderboard-score">{player.game_2_score || 0}</span>
+                    <span className="leaderboard-score highlight">{player.cumulative_score || player.total_score || 0}</span>
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {totalRows === 0 && (
+            <div className="empty-leaderboard" style={{ padding: '2rem 0', textAlign: 'center', color: 'var(--text-muted)' }}>
+              No scores yet
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
 function App() {
   const [socket, setSocket] = useState(null);
   const [screen, setScreen] = useState('lobby'); // lobby, game, game_1_results, game_2_results, final_leaderboard
@@ -129,6 +314,7 @@ function App() {
   const [feedback, setFeedback] = useState(null);
   const [leaderboard, setLeaderboard] = useState([]);
   const [answerSubmitted, setAnswerSubmitted] = useState(false);
+  const [voteTrend, setVoteTrend] = useState(null); // Real-time live vote trend poll state
 
   // Multi-game sequence state
   const [currentGameNumber, setCurrentGameNumber] = useState(1);
@@ -154,11 +340,14 @@ function App() {
     }
   }, []);
 
-  // Initialize socket connection
+  // Initialize socket connection with scaling parameters
   useEffect(() => {
     const s = io(`${BACKEND_URL}/game`, {
-      transports: ['websocket', 'polling'],
-      autoConnect: true
+      transports: ['websocket'], // Use pure websocket transport for performance
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000
     });
     
     socketRef.current = s;
@@ -222,6 +411,7 @@ function App() {
       setSelectedOption(null);
       setFeedback(null);
       setAnswerSubmitted(false);
+      setVoteTrend(null);
       setScreen('game');
     });
 
@@ -233,18 +423,31 @@ function App() {
       setLeaderboard(data);
     });
 
-    s.on('answer_feedback', (data) => {
-      setFeedback(data);
+    // Sent to individual player upon clicking an answer
+    s.on('answer_submitted', (data) => {
+      setAnswerSubmitted(true);
     });
 
+    // Throttled live voting trend updates
+    s.on('vote_trend_update', (data) => {
+      setVoteTrend(data);
+    });
+
+    // Replaces 'answer_feedback' and broadcasts to all
     s.on('answer_reveal', (data) => {
       setFeedback({
         is_reveal: true,
         correct_option: data.correct_option,
         correct_answer_text: data.correct_answer_text,
-        explanation: data.explanation || ''
+        is_correct: data.is_your_answer_correct,
+        is_your_answer_correct: data.is_your_answer_correct,
+        your_score_change: data.your_score_change,
+        final_vote_distribution: data.final_vote_distribution,
+        explanation: data.explanation || data.question_explanation || ''
       });
       setLeaderboard(data.leaderboard);
+      setVoteTrend(null); // Clear voting trends since option correct answers are now shown
+      setScreen('question_results');
     });
 
     s.on('game_1_finished', (data) => {
@@ -260,6 +463,7 @@ function App() {
       setSelectedOption(null);
       setFeedback(null);
       setAnswerSubmitted(false);
+      setVoteTrend(null);
       setScreen('game');
     });
 
@@ -286,6 +490,7 @@ function App() {
       setFeedback(null);
       setSelectedOption(null);
       setAnswerSubmitted(false);
+      setVoteTrend(null);
       setFinalResults(null);
       setCurrentGameNumber(1);
       setGame1Leaderboard([]);
@@ -603,13 +808,19 @@ function App() {
                     const optText = question[`option_${optIndex}`];
                     const isCorrectOpt = optIndex === question.correct_option;
                     const badgeMap = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' };
+                    
+                    // Show final counts after reveal
+                    const distribution = feedback?.final_vote_distribution?.[`option_${optIndex}`];
+
                     return (
                       <div
                         key={optIndex}
                         className={`option-btn ${isCorrectOpt ? 'correct' : ''}`}
                         style={{ cursor: 'default', opacity: isCorrectOpt ? 1 : 0.6 }}
                       >
-                        <span>{optText}</span>
+                        <span>
+                          {optText} {distribution && `(${distribution.votes} votes, ${distribution.percentage}%)`}
+                        </span>
                         {isCorrectOpt ? (
                           <span className="status-badge" style={{ background: 'rgba(255,255,255,0.2)', color: 'white', borderColor: 'transparent', fontSize: '0.75rem' }}>
                             CORRECT ANSWER ✓
@@ -623,9 +834,15 @@ function App() {
                     );
                   })}
                 </div>
-                <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.95rem' }}>
-                  💡 Players are currently submitting answers. Waiting for timer...
-                </div>
+                {/* Live voting trend display for admin */}
+                {!feedback && voteTrend && (
+                  <VotingTrendDisplay trend={voteTrend} />
+                )}
+                {feedback && (
+                  <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                    Explanation: <strong>{feedback.explanation}</strong>
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -640,9 +857,15 @@ function App() {
                     const isSelected = selectedOption === optIndex;
                     
                     let btnClass = 'option-btn';
-                    if (isSelected) btnClass += ' selected';
+                    if (answerSubmitted) {
+                      btnClass += ' submitted';
+                    }
+                    if (isSelected) {
+                      btnClass += ' selected';
+                    }
 
-                    // Check feedback cases
+                    // Check feedback/reveal cases
+                    let distribution = null;
                     if (feedback) {
                       const isCorrectOpt = optIndex === feedback.correct_option;
                       const isWrongSelected = isSelected && !feedback.is_correct;
@@ -652,6 +875,8 @@ function App() {
                       } else if (isWrongSelected) {
                         btnClass += ' wrong';
                       }
+                      
+                      distribution = feedback.final_vote_distribution?.[`option_${optIndex}`];
                     }
 
                     const badgeMap = { 1: 'A', 2: 'B', 3: 'C', 4: 'D' };
@@ -663,37 +888,50 @@ function App() {
                         onClick={() => handleSelectOption(optIndex)}
                         disabled={answerSubmitted || timer <= 0 || (feedback && feedback.is_reveal)}
                       >
-                        <span>{optText}</span>
+                        <span>
+                          {optText} {distribution && `(${distribution.votes} votes, ${distribution.percentage}%)`}
+                        </span>
                         <span className="option-badge">
-                          {badgeMap[optIndex]}
+                          {isSelected && !feedback && '✓'}
+                          {(!isSelected || feedback) && badgeMap[optIndex]}
                         </span>
                       </button>
                     );
                   })}
                 </div>
 
+                {/* Show Live Voting Trend during the selection window */}
+                {!feedback && voteTrend && (
+                  <VotingTrendDisplay trend={voteTrend} />
+                )}
+
                 {/* Live Buzzer Feedback */}
                 <div className="feedback-container">
                   {feedback && (
                     <>
-                      {feedback.is_reveal ? (
-                        <div className="feedback-alert timeout">
-                          Time's up! Correct answer: <strong>{feedback.correct_answer_text}</strong>
-                        </div>
-                      ) : feedback.is_correct ? (
+                      {feedback.is_your_answer_correct ? (
                         <div className="feedback-alert correct">
                           ✓ Correct! +1 Point
                         </div>
-                      ) : (
+                      ) : selectedOption !== null ? (
                         <div className="feedback-alert wrong">
-                          ✗ Wrong! Correct: {feedback.correct_answer_text}
+                          ✗ Wrong! Correct was Option {feedback.correct_option} ({feedback.correct_answer_text})
+                        </div>
+                      ) : (
+                        <div className="feedback-alert timeout">
+                          Time's up! Correct was Option {feedback.correct_option} ({feedback.correct_answer_text})
+                        </div>
+                      )}
+                      {feedback.explanation && (
+                        <div style={{ marginTop: '1rem', color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                          💡 <strong>Explanation:</strong> {feedback.explanation}
                         </div>
                       )}
                     </>
                   )}
                   {!feedback && answerSubmitted && (
-                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                      Buzzer locked! Waiting for timer...
+                    <div className="submission-success">
+                      <span>✓ Submitted</span>
                     </div>
                   )}
                 </div>
@@ -701,66 +939,73 @@ function App() {
             )}
           </div>
 
-          {/* Sidebar Leaderboard */}
-          <div className="sidebar-leaderboard">
-            <div className="leaderboard-title">
-              <span>Leaderboard</span>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>Live Updates</span>
-            </div>
-            <div 
-              className="leaderboard-table-header"
-              style={{
-                gridTemplateColumns: currentGameNumber === 1 ? '35px 1fr 45px 50px' : '35px 1fr 40px 40px 50px'
-              }}
-            >
-              <span className="hdr-rank">Pos</span>
-              <span className="hdr-name" style={{ textAlign: 'left' }}>Player</span>
-              {currentGameNumber === 1 ? (
-                <>
-                  <span className="hdr-score">G1</span>
-                  <span className="hdr-score">Total</span>
-                </>
-              ) : (
-                <>
-                  <span className="hdr-score">G1</span>
-                  <span className="hdr-score">G2</span>
-                  <span className="hdr-score">Total</span>
-                </>
-              )}
-            </div>
-            <div className="leaderboard-rows">
-              {leaderboard.map((player, idx) => (
-                <div 
-                  key={idx} 
-                  className={`leaderboard-row-grid ${player.player_name === playerName ? 'current-player' : ''}`}
-                  style={{
-                    gridTemplateColumns: currentGameNumber === 1 ? '35px 1fr 45px 50px' : '35px 1fr 40px 40px 50px'
-                  }}
-                >
-                  <span className="leaderboard-rank">#{player.rank}</span>
-                  <span className="leaderboard-name" style={{ textAlign: 'left' }} title={player.player_name}>
-                    {player.player_name}
+          {/* Sidebar Leaderboard with Virtualized Scrolling */}
+          <VirtualLeaderboard 
+            leaderboard={leaderboard} 
+            currentGameNumber={currentGameNumber} 
+            playerName={playerName} 
+          />
+        </div>
+      )}
+
+      {/* Screen 2.5: Question Results */}
+      {screen === 'question_results' && feedback && (
+        <div className="results-card">
+          {!isAdmin && (
+            <h2 style={{ fontSize: '2rem', marginBottom: '1.5rem', color: feedback.is_your_answer_correct ? 'var(--correct)' : 'var(--wrong)' }}>
+              {feedback.is_your_answer_correct ? '✓ Correct! +1 Point' : '✗ Incorrect'}
+            </h2>
+          )}
+          {isAdmin && (
+            <h2 style={{ fontSize: '2rem', marginBottom: '1.5rem', color: 'var(--accent-gold)' }}>
+              Question Results
+            </h2>
+          )}
+          
+          <h3 style={{ fontSize: '1.4rem', marginBottom: '1rem', color: 'var(--text)' }}>
+            {question?.question_text}
+          </h3>
+          
+          <div style={{ marginBottom: '2.5rem', padding: '1.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '15px', border: '1px solid var(--border-light)' }}>
+            <h4 style={{ color: 'var(--accent-gold)', marginBottom: '1rem', fontSize: '1.1rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Correct Answer</h4>
+            <div style={{ fontSize: '1.3rem', fontWeight: 600 }}>Option {feedback.correct_option}: {feedback.correct_answer_text}</div>
+            {feedback.explanation && (
+              <div style={{ marginTop: '1.2rem', color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: '1.5' }}>
+                💡 <strong>Explanation:</strong> {feedback.explanation}
+              </div>
+            )}
+          </div>
+
+          <h3 style={{ fontSize: '1.4rem', marginBottom: '1.5rem' }}>Vote Distribution</h3>
+          <div className="voting-trend-bars" style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.2)', borderRadius: '15px' }}>
+            {[1, 2, 3, 4].map(idx => {
+              const opt = feedback.final_vote_distribution?.[`option_${idx}`];
+              if (!opt && !question?.[`option_${idx}`]) return null;
+              
+              const percentage = opt ? opt.percentage : 0;
+              const votes = opt ? opt.votes : 0;
+              const isCorrect = idx === feedback.correct_option;
+              
+              return (
+                <div key={idx} className="trend-bar-row" style={{ marginBottom: '1.2rem' }}>
+                  <span className="trend-option-label" style={{ minWidth: '90px', color: isCorrect ? 'var(--correct)' : 'var(--text)', fontWeight: isCorrect ? 700 : 400 }}>
+                    Option {idx} {isCorrect && '✓'}
                   </span>
-                  {currentGameNumber === 1 ? (
-                    <>
-                      <span className="leaderboard-score">{player.game_1_score || 0}</span>
-                      <span className="leaderboard-score highlight">{player.cumulative_score || player.total_score || 0}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="leaderboard-score">{player.game_1_score || 0}</span>
-                      <span className="leaderboard-score">{player.game_2_score || 0}</span>
-                      <span className="leaderboard-score highlight">{player.cumulative_score || player.total_score || 0}</span>
-                    </>
-                  )}
+                  <div className="trend-bar-wrapper" style={{ height: '28px' }}>
+                    <div 
+                      className="trend-bar" 
+                      style={{ 
+                        width: `${percentage}%`,
+                        background: isCorrect ? 'var(--correct-grad)' : 'var(--accent-primary)' 
+                      }}
+                    />
+                  </div>
+                  <span className="trend-vote-count" style={{ minWidth: '160px', fontWeight: isCorrect ? 700 : 400 }}>
+                    {votes} votes ({percentage}%)
+                  </span>
                 </div>
-              ))}
-              {leaderboard.length === 0 && (
-                <div className="empty-leaderboard">
-                  No scores yet
-                </div>
-              )}
-            </div>
+              );
+            })}
           </div>
         </div>
       )}
