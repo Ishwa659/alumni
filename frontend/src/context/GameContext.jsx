@@ -42,10 +42,12 @@ export const GameProvider = ({ children }) => {
 
   // Initialize socket connection on component mount
   useEffect(() => {
-    // Dynamically resolve server URL based on window environment
+    // Dynamically resolve server URL based on environment
+    // In production (Render), frontend is served from the same origin as backend
+    // In development, backend runs on port 5000
     const serverUrl = window.location.hostname === 'localhost' 
       ? 'http://localhost:5000' 
-      : `${window.location.protocol}//${window.location.hostname}:5000`;
+      : window.location.origin;
 
     const newSocket = io(serverUrl, {
       autoConnect: true,
@@ -222,7 +224,7 @@ export const GameProvider = ({ children }) => {
   const startGame = async () => {
     const serverUrl = window.location.hostname === 'localhost' 
       ? 'http://localhost:5000' 
-      : `${window.location.protocol}//${window.location.hostname}:5000`;
+      : window.location.origin;
     
     try {
       const res = await fetch(`${serverUrl}/api/admin/start`, {

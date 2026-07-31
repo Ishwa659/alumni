@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const crypto = require('crypto');
@@ -752,6 +753,15 @@ function sendFinalResults(target, room) {
     });
   }
 }
+
+// ─── Serve Frontend Static Build (Production) ──────────────────────
+const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+app.use(express.static(frontendDistPath));
+
+// SPA catch-all: serve index.html for any non-API route
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
 
 // Start application
 async function startServer() {
