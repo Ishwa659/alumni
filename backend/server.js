@@ -982,6 +982,7 @@ class GameRunner {
     this.answersReceived = {};
     this.voteTrends = { 1: 0, 2: 0, 3: 0, 4: 0 };
     this.lastVoteTrendTime = 0;
+    this.isPaused = false;
     if (this.voteTrendTimeout) {
       clearTimeout(this.voteTrendTimeout);
       this.voteTrendTimeout = null;
@@ -1015,6 +1016,7 @@ class GameRunner {
 
     // Reset & Start Timer
     this.timer = 15;
+    this.isPaused = false;
     if (this.timerInterval) clearInterval(this.timerInterval);
     this.timerInterval = setInterval(() => {
       this.timer--;
@@ -1026,6 +1028,32 @@ class GameRunner {
         this.revealAnswer();
       }
     }, 1000);
+  }
+
+  pauseTimer() {
+    if (this.timerInterval && !this.isPaused) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+      this.isPaused = true;
+      this.io.to(this.roomCode).emit('timer_paused', { timer_seconds: this.timer });
+    }
+  }
+
+  resumeTimer() {
+    if (this.isPaused && this.timer > 0) {
+      this.isPaused = false;
+      this.timerInterval = setInterval(() => {
+        this.timer--;
+        this.io.to(this.roomCode).emit('timer_tick', { seconds_remaining: this.timer });
+
+        if (this.timer <= 0) {
+          clearInterval(this.timerInterval);
+          this.timerInterval = null;
+          this.revealAnswer();
+        }
+      }, 1000);
+      this.io.to(this.roomCode).emit('timer_resumed', { timer_seconds: this.timer });
+    }
   }
 
   async submitAnswer(playerId, selectedOption, socket) {
@@ -1483,6 +1511,34 @@ gameNamespace.on('connection', (socket) => {
     if (!runner) return;
 
     await runner.submitAnswer(player_id, selected_option, socket);
+  });
+
+  // Pause Timer
+  socket.on('pause_timer', (data) => {
+    let { room_code, player_id } = data;
+    room_code = room_code?.toUpperCase().trim();
+
+    const runner = gameRunners[room_code];
+    if (runner) {
+      const player = runner.getPlayer(player_id);
+      if (player && player.isAdmin) {
+        runner.pauseTimer();
+      }
+    }
+  });
+
+  // Resume Timer
+  socket.on('resume_timer', (data) => {
+    let { room_code, player_id } = data;
+    room_code = room_code?.toUpperCase().trim();
+
+    const runner = gameRunners[room_code];
+    if (runner) {
+      const player = runner.getPlayer(player_id);
+      if (player && player.isAdmin) {
+        runner.resumeTimer();
+      }
+    }
   });
 
   // Reset or play again

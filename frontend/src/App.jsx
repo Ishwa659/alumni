@@ -315,6 +315,7 @@ function App() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [answerSubmitted, setAnswerSubmitted] = useState(false);
   const [voteTrend, setVoteTrend] = useState(null); // Real-time live vote trend poll state
+  const [isPaused, setIsPaused] = useState(false);
 
   // Multi-game sequence state
   const [currentGameNumber, setCurrentGameNumber] = useState(1);
@@ -412,11 +413,22 @@ function App() {
       setFeedback(null);
       setAnswerSubmitted(false);
       setVoteTrend(null);
+      setIsPaused(false);
       setScreen('game');
     });
 
     s.on('timer_tick', (data) => {
       setTimer(data.seconds_remaining);
+    });
+
+    s.on('timer_paused', (data) => {
+      setIsPaused(true);
+      setTimer(data.timer_seconds);
+    });
+
+    s.on('timer_resumed', (data) => {
+      setIsPaused(false);
+      setTimer(data.timer_seconds);
     });
 
     s.on('leaderboard_update', (data) => {
@@ -775,8 +787,8 @@ function App() {
                 Game {currentGameNumber}/2: {currentGameNumber === 1 ? "AI Chatbot Trivia" : "Image-to-3D Conversion Technology"} | Question {question.question_number} / 10
               </span>
               <div className="timer-container">
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>TIME REMAINING</span>
-                <div className={`timer-circle ${timer <= 5 ? (timer <= 2 ? 'danger' : 'warning') : ''}`}>
+                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{isPaused ? 'PAUSED' : 'TIME REMAINING'}</span>
+                <div className={`timer-circle ${isPaused ? '' : (timer <= 5 ? (timer <= 2 ? 'danger' : 'warning') : '')}`}>
                   {timer}
                 </div>
               </div>
@@ -835,6 +847,28 @@ function App() {
                   })}
                 </div>
                 {/* Live voting trend removed per requirements */}
+                <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+                  {!feedback && (
+                    <button 
+                      className="btn" 
+                      onClick={() => {
+                        if (isPaused) {
+                          socketRef.current.emit('resume_timer', { room_code: roomCode, player_id: playerId });
+                        } else {
+                          socketRef.current.emit('pause_timer', { room_code: roomCode, player_id: playerId });
+                        }
+                      }}
+                      style={{ 
+                        background: isPaused ? 'var(--correct-grad)' : 'var(--wrong-grad)', 
+                        maxWidth: '220px', 
+                        padding: '0.75rem', 
+                        fontSize: '1rem' 
+                      }}
+                    >
+                      {isPaused ? '▶ RESUME TIMER' : '⏸ PAUSE TIMER'}
+                    </button>
+                  )}
+                </div>
                 {feedback && (
                   <div style={{ marginTop: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                     Explanation: <strong>{feedback.explanation}</strong>
