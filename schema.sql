@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS game_metadata (
   game_number INT NOT NULL UNIQUE CHECK (game_number IN (1, 2)),
   game_name VARCHAR(100) NOT NULL,
   game_description VARCHAR(500),
-  total_questions INT DEFAULT 15,
+  total_questions INT DEFAULT 10,
   category VARCHAR(100),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS game_metadata (
 CREATE TABLE IF NOT EXISTS questions (
   id SERIAL PRIMARY KEY,
   game_number INT NOT NULL DEFAULT 1 REFERENCES game_metadata(game_number) ON DELETE CASCADE,
-  question_number INT NOT NULL CHECK (question_number BETWEEN 1 AND 15),
+  question_number INT NOT NULL CHECK (question_number BETWEEN 1 AND 10),
   ai_app_id INT REFERENCES ai_apps(id) ON DELETE CASCADE, -- Made nullable for Game 2 technology questions
   question_type VARCHAR(50) NOT NULL,
   question_text VARCHAR(500) NOT NULL,

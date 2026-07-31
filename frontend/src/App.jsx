@@ -73,9 +73,11 @@ function AiLogo({ url, name }) {
   if (lowerUrl.includes('grok')) {
     return (
       <div className="ai-logo-container grok">
-        <svg viewBox="0 0 24 24" className="ai-logo-svg" fill="currentColor">
+        <svg viewBox="0 0 256 256" className="ai-logo-svg" fill="currentColor">
           <title>Grok</title>
-          <path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/>
+          <path d="M128 0C57.3 0 0 57.3 0 128s57.3 128 128 128 128-57.3 128-128S198.7 0 128 0zm0 40c48.6 0 88 39.4 88 88s-39.4 88-88 88-88-39.4-88-88 39.4-88 88-88zm0 24c-35.3 0-64 28.7-64 64s28.7 64 64 64 64-28.7 64-64-28.7-64-64-64zm80-28l-40 40h56l-16-40zm-160 0l-16 40h56l-40-40z"/>
+          <circle cx="128" cy="128" r="32"/>
+          <ellipse cx="128" cy="128" rx="120" ry="28" fill="none" stroke="currentColor" strokeWidth="8" transform="rotate(-30 128 128)"/>
         </svg>
       </div>
     );
@@ -111,6 +113,8 @@ function App() {
   const [screen, setScreen] = useState('lobby'); // lobby, game, game_1_results, game_2_results, final_leaderboard
   const [roomCode, setRoomCode] = useState('');
   const [playerName, setPlayerName] = useState('');
+  const [playerEmoji, setPlayerEmoji] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [playerId, setPlayerId] = useState(() => localStorage.getItem('ai_trivia_player_id') || '');
   const [isAdmin, setIsAdmin] = useState(false);
   const [joined, setJoined] = useState(false);
@@ -320,7 +324,7 @@ function App() {
     if (socket) {
       socket.emit('join_game', {
         room_code: roomCode.toUpperCase().trim(),
-        player_name: playerName.trim(),
+        player_name: playerEmoji ? `${playerEmoji} ${playerName.trim()}` : playerName.trim(),
         player_id: playerId
       });
     }
@@ -461,6 +465,35 @@ function App() {
                     maxLength={15}
                   />
                 </div>
+                <div className="form-group">
+                  <label className="form-label">Choose Your Emoji</label>
+                  <div className="emoji-selector">
+                    <button 
+                      type="button"
+                      className="emoji-trigger"
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    >
+                      {playerEmoji || '😀'} <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{playerEmoji ? 'Change' : 'Pick emoji'}</span>
+                    </button>
+                    {showEmojiPicker && (
+                      <div className="emoji-grid">
+                        {['😀','😎','🤖','🧠','🚀','⚡','🔥','💎','🎯','🏆','👾','🦊','🐱','🦁','🐼','🦄','🌟','💜','🎮','🎲','👑','🦅','🐲','🌈','🍀','⭐','💡','🎭','🦋','🌺'].map(emoji => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            className={`emoji-option ${playerEmoji === emoji ? 'selected' : ''}`}
+                            onClick={() => {
+                              setPlayerEmoji(emoji);
+                              setShowEmojiPicker(false);
+                            }}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <button type="submit" className="btn">
                   JOIN GAME <span>⚡</span>
                 </button>
@@ -534,7 +567,7 @@ function App() {
           <div className="game-main">
             <div className="game-header">
               <span className="question-progress">
-                Game {currentGameNumber}/2: {currentGameNumber === 1 ? "AI Chatbot Trivia" : "Image-to-3D Conversion Technology"} | Question {question.question_number} / 15
+                Game {currentGameNumber}/2: {currentGameNumber === 1 ? "AI Chatbot Trivia" : "Image-to-3D Conversion Technology"} | Question {question.question_number} / 10
               </span>
               <div className="timer-container">
                 <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 600 }}>TIME REMAINING</span>
@@ -741,7 +774,7 @@ function App() {
               {winner ? `${winner.player_name} wins Game 1!` : 'Game 1 Complete!'}
             </h1>
             <p className="winner-score">
-              {winner ? `Score: ${winner.game_1_score} / 15 points` : ''}
+              {winner ? `Score: ${winner.game_1_score} / 10 points` : ''}
             </p>
           </div>
 
@@ -762,7 +795,7 @@ function App() {
                   <tr key={idx} className={row.rank === 1 ? 'highlight-winner' : ''}>
                     <td style={{ fontWeight: 700 }}>#{row.rank}</td>
                     <td>{row.player_name} {row.rank === 1 && '👑'}</td>
-                    <td style={{ fontWeight: 600 }}>{row.game_1_score} / 15</td>
+                    <td style={{ fontWeight: 600 }}>{row.game_1_score} / 10</td>
                   </tr>
                 ))}
               </tbody>
@@ -829,7 +862,7 @@ function App() {
               {winner ? `${winner.player_name} wins Game 2!` : 'Game 2 Complete!'}
             </h1>
             <p className="winner-score">
-              {winner ? `Score: ${winner.game_2_score} / 15 points` : ''}
+              {winner ? `Score: ${winner.game_2_score} / 10 points` : ''}
             </p>
           </div>
 
@@ -850,7 +883,7 @@ function App() {
                   <tr key={idx} className={row.rank === 1 ? 'highlight-winner' : ''}>
                     <td style={{ fontWeight: 700 }}>#{row.rank}</td>
                     <td>{row.player_name} {row.rank === 1 && '👑'}</td>
-                    <td style={{ fontWeight: 600 }}>{row.game_2_score} / 15</td>
+                    <td style={{ fontWeight: 600 }}>{row.game_2_score} / 10</td>
                   </tr>
                 ))}
               </tbody>

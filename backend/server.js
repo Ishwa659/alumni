@@ -40,53 +40,44 @@ const seedAis = [
 ];
 
 const seedGameMetadata = [
-  { game_number: 1, game_name: 'AI Chatbot Trivia', game_description: 'Questions about ChatGPT, Claude, Gemini, etc.', total_questions: 15, category: 'ai_tools' },
-  { game_number: 2, game_name: 'Image-to-3D Conversion Technology', game_description: 'Technical questions about 3D reconstruction, neural rendering, mesh generation, etc.', total_questions: 15, category: 'ai_technology' }
+  { game_number: 1, game_name: 'AI Chatbot Trivia', game_description: 'Questions about ChatGPT, Claude, Gemini, etc.', total_questions: 10, category: 'ai_tools' },
+  { game_number: 2, game_name: 'Image-to-3D Conversion Technology', game_description: 'Questions about 3D reconstruction, neural rendering, mesh generation, etc.', total_questions: 10, category: 'ai_technology' }
 ];
 
 const seedQuestions = [
-  // ChatGPT (Q1-Q3)
+  // === EASY (Q1-Q5) ===
   { game_number: 1, question_number: 1, ai_app_id: 1, question_type: 'name', question_text: 'What is the name of this AI?', correct_option: 1, option_1: 'ChatGPT', option_2: 'Gemini', option_3: 'Claude', option_4: '', explanation: 'ChatGPT is developed by OpenAI.', difficulty: 'easy' },
-  { game_number: 1, question_number: 2, ai_app_id: 1, question_type: 'founder', question_text: 'Who founded this AI?', correct_option: 2, option_1: 'Elon Musk', option_2: 'Sam Altman', option_3: 'Sundar Pichai', option_4: '', explanation: 'OpenAI was co-founded by Sam Altman, Greg Brockman, Ilya Sutskever, and others.', difficulty: 'medium' },
-  { game_number: 1, question_number: 3, ai_app_id: 1, question_type: 'feature', question_text: 'What is the main feature of this AI?', correct_option: 1, option_1: 'Conversational AI', option_2: 'Code Generation', option_3: 'Multimodal', option_4: '', explanation: 'ChatGPT main focus is conversational understanding.', difficulty: 'medium' },
-  
-  // Claude (Q4-Q6)
-  { game_number: 1, question_number: 4, ai_app_id: 2, question_type: 'name', question_text: 'What is the name of this AI?', correct_option: 3, option_1: 'Grok', option_2: 'Copilot', option_3: 'Claude', option_4: '', explanation: 'Claude is developed by Anthropic.', difficulty: 'easy' },
-  { game_number: 1, question_number: 5, ai_app_id: 2, question_type: 'founder', question_text: 'Who founded this AI?', correct_option: 1, option_1: 'Dario Amodei', option_2: 'Satya Nadella', option_3: 'Sam Altman', option_4: '', explanation: 'Anthropic was founded by former OpenAI members including Dario Amodei.', difficulty: 'medium' },
-  { game_number: 1, question_number: 6, ai_app_id: 2, question_type: 'feature', question_text: 'What is the main feature of this AI?', correct_option: 2, option_1: 'Code & Productivity', option_2: 'Constitutional AI', option_3: 'Real-time Information', option_4: '', explanation: 'Anthropic trains Claude using Constitutional AI feedback.', difficulty: 'hard' },
+  { game_number: 1, question_number: 2, ai_app_id: 2, question_type: 'name', question_text: 'What is the name of this AI?', correct_option: 3, option_1: 'Grok', option_2: 'Copilot', option_3: 'Claude', option_4: '', explanation: 'Claude is developed by Anthropic.', difficulty: 'easy' },
+  { game_number: 1, question_number: 3, ai_app_id: 3, question_type: 'name', question_text: 'What is the name of this AI?', correct_option: 1, option_1: 'Gemini', option_2: 'Claude', option_3: 'ChatGPT', option_4: '', explanation: 'Gemini is Google flagship model.', difficulty: 'easy' },
+  { game_number: 1, question_number: 4, ai_app_id: 4, question_type: 'name', question_text: 'What is the name of this AI?', correct_option: 3, option_1: 'Grok', option_2: 'ChatGPT', option_3: 'Copilot', option_4: '', explanation: 'GitHub/Microsoft assistant is called Copilot.', difficulty: 'easy' },
+  { game_number: 1, question_number: 5, ai_app_id: 5, question_type: 'name', question_text: 'What is the name of this AI?', correct_option: 1, option_1: 'Grok', option_2: 'Gemini', option_3: 'Claude', option_4: '', explanation: 'Grok is the AI built by xAI.', difficulty: 'easy' },
 
-  // Gemini (Q7-Q9)
-  { game_number: 1, question_number: 7, ai_app_id: 3, question_type: 'name', question_text: 'What is the name of this AI?', correct_option: 1, option_1: 'Gemini', option_2: 'Claude', option_3: 'ChatGPT', option_4: '', explanation: 'Gemini is Google flagship model.', difficulty: 'easy' },
-  { game_number: 1, question_number: 8, ai_app_id: 3, question_type: 'founder', question_text: 'Who founded this AI?', correct_option: 2, option_1: 'Elon Musk', option_2: 'Sundar Pichai', option_3: 'Dario Amodei', option_4: '', explanation: 'Gemini was developed by Google DeepMind led by Demis Hassabis under Sundar Pichai.', difficulty: 'medium' },
-  { game_number: 1, question_number: 9, ai_app_id: 3, question_type: 'feature', question_text: 'What is the main feature of this AI?', correct_option: 2, option_1: 'Conversational AI', option_2: 'Multimodal AI', option_3: 'Real-time Information', option_4: '', explanation: 'Gemini is natively built as a multimodal AI model.', difficulty: 'hard' },
+  // === MEDIUM (Q6-Q8) ===
+  { game_number: 1, question_number: 6, ai_app_id: 1, question_type: 'founder', question_text: 'Who founded this AI?', correct_option: 2, option_1: 'Elon Musk', option_2: 'Sam Altman', option_3: 'Sundar Pichai', option_4: '', explanation: 'OpenAI was co-founded by Sam Altman.', difficulty: 'medium' },
+  { game_number: 1, question_number: 7, ai_app_id: 3, question_type: 'founder', question_text: 'Who leads the company behind this AI?', correct_option: 2, option_1: 'Elon Musk', option_2: 'Sundar Pichai', option_3: 'Dario Amodei', option_4: '', explanation: 'Gemini was developed by Google under Sundar Pichai.', difficulty: 'medium' },
+  { game_number: 1, question_number: 8, ai_app_id: 5, question_type: 'founder', question_text: 'Who founded this AI?', correct_option: 2, option_1: 'Sam Altman', option_2: 'Elon Musk', option_3: 'Satya Nadella', option_4: '', explanation: 'Elon Musk founded xAI in 2023.', difficulty: 'medium' },
 
-  // Copilot (Q10-Q12)
-  { game_number: 1, question_number: 10, ai_app_id: 4, question_type: 'name', question_text: 'What is the name of this AI?', correct_option: 3, option_1: 'Grok', option_2: 'ChatGPT', option_3: 'Copilot', option_4: '', explanation: 'GitHub/Microsoft assistant is called Copilot.', difficulty: 'easy' },
-  { game_number: 1, question_number: 11, ai_app_id: 4, question_type: 'founder', question_text: 'Who founded this AI?', correct_option: 1, option_1: 'Satya Nadella', option_2: 'Sundar Pichai', option_3: 'Elon Musk', option_4: '', explanation: 'Copilot is developed by Microsoft/GitHub under Satya Nadella.', difficulty: 'medium' },
-  { game_number: 1, question_number: 12, ai_app_id: 4, question_type: 'feature', question_text: 'What is the main feature of this AI?', correct_option: 1, option_1: 'Code & Productivity', option_2: 'Constitutional AI', option_3: 'Conversational AI', option_4: '', explanation: 'Copilot is primarily integrated into IDEs for code suggestions.', difficulty: 'medium' },
-
-  // Grok (Q13-Q15)
-  { game_number: 1, question_number: 13, ai_app_id: 5, question_type: 'name', question_text: 'What is the name of this AI?', correct_option: 1, option_1: 'Grok', option_2: 'Gemini', option_3: 'Claude', option_4: '', explanation: 'Grok is the AI built by xAI.', difficulty: 'easy' },
-  { game_number: 1, question_number: 14, ai_app_id: 5, question_type: 'founder', question_text: 'Who founded this AI?', correct_option: 2, option_1: 'Sam Altman', option_2: 'Elon Musk', option_3: 'Satya Nadella', option_4: '', explanation: 'Elon Musk founded xAI in 2023.', difficulty: 'medium' },
-  { game_number: 1, question_number: 15, ai_app_id: 5, question_type: 'feature', question_text: 'What is the main feature of this AI?', correct_option: 3, option_1: 'Multimodal AI', option_2: 'Constitutional AI', option_3: 'Real-time Information', option_4: '', explanation: 'Grok has access to real-time posts and news on the X platform.', difficulty: 'hard' }
+  // === HARD (Q9-Q10) ===
+  { game_number: 1, question_number: 9, ai_app_id: 2, question_type: 'feature', question_text: 'What is the main feature of this AI?', correct_option: 2, option_1: 'Code & Productivity', option_2: 'Constitutional AI', option_3: 'Real-time Information', option_4: '', explanation: 'Anthropic trains Claude using Constitutional AI feedback.', difficulty: 'hard' },
+  { game_number: 1, question_number: 10, ai_app_id: 3, question_type: 'feature', question_text: 'What is the main feature of this AI?', correct_option: 2, option_1: 'Conversational AI', option_2: 'Multimodal AI', option_3: 'Real-time Information', option_4: '', explanation: 'Gemini is natively built as a multimodal AI model.', difficulty: 'hard' }
 ];
 
 const seedQuestionsGame2 = [
-  { game_number: 2, question_number: 1, ai_app_id: null, question_type: 'tech', question_text: 'Which neural network architecture is most commonly used for 3D reconstruction from single images?', correct_option: 1, option_1: 'Convolutional Neural Networks (CNNs)', option_2: 'Recurrent Neural Networks (RNNs)', option_3: 'Transformer networks only', option_4: 'Support Vector Machines (SVMs)', explanation: 'CNNs extract 2D features which are then used for 3D reconstruction.', difficulty: 'medium' },
-  { game_number: 2, question_number: 2, ai_app_id: null, question_type: 'tech', question_text: 'What is NeRF (Neural Radiance Fields) primarily used for?', correct_option: 1, option_1: 'Converting 2D images to 3D volumetric representations', option_2: 'Text-to-image generation', option_3: 'Image segmentation', option_4: 'Depth-only estimation', explanation: 'NeRF uses implicit neural representations to model 3D scenes.', difficulty: 'medium' },
-  { game_number: 2, question_number: 3, ai_app_id: null, question_type: 'tech', question_text: 'Which loss function is commonly used to supervise depth estimation networks?', correct_option: 1, option_1: 'L1 loss or smooth L1 loss', option_2: 'Binary cross-entropy', option_3: 'Kullback-Leibler divergence', option_4: 'Contrastive loss', explanation: 'L1 loss directly penalizes depth prediction errors.', difficulty: 'hard' },
-  { game_number: 2, question_number: 4, ai_app_id: null, question_type: 'tech', question_text: 'What is a point cloud in 3D computer vision?', correct_option: 1, option_1: 'A set of (x, y, z) coordinates in 3D space', option_2: 'A continuous mesh surface', option_3: 'A 2D image array', option_4: 'A video frame sequence', explanation: 'Point clouds are discrete 3D spatial data representations.', difficulty: 'easy' },
-  { game_number: 2, question_number: 5, ai_app_id: null, question_type: 'tech', question_text: 'Which method is used to convert point clouds to mesh surfaces?', correct_option: 1, option_1: 'Poisson surface reconstruction or ball pivoting algorithm', option_2: 'Gaussian blur filters', option_3: 'Histogram equalization', option_4: 'Fourier transforms', explanation: 'These are standard surface reconstruction techniques for point clouds.', difficulty: 'hard' },
-  { game_number: 2, question_number: 6, ai_app_id: null, question_type: 'tech', question_text: 'What does SDF (Signed Distance Function) represent in 3D generation?', correct_option: 1, option_1: 'Distance from a point to the nearest surface, with sign indicating inside/outside', option_2: 'Surface Density Factor', option_3: 'Spatial Depth Filtering', option_4: 'Scale Distortion Function', explanation: 'SDFs are implicit representations used in neural 3D modeling.', difficulty: 'hard' },
-  { game_number: 2, question_number: 7, ai_app_id: null, question_type: 'tech', question_text: 'Which of these is a key challenge in image-to-3D conversion?', correct_option: 1, option_1: 'Ambiguity in 3D interpretation from 2D (multiple valid 3D solutions)', option_2: 'Insufficient GPU memory', option_3: 'Too much training data', option_4: 'Network overfitting only', explanation: 'The inverse problem of reconstructing 3D from 2D is inherently ambiguous.', difficulty: 'medium' },
-  { game_number: 2, question_number: 8, ai_app_id: null, question_type: 'tech', question_text: 'What is multi-view 3D reconstruction?', correct_option: 1, option_1: 'Using multiple 2D images from different viewpoints to reconstruct 3D', option_2: 'Creating multiple independent 3D models', option_3: 'Viewing a 3D model from different angles', option_4: 'Using video frames for 3D', explanation: 'Multiple views provide geometric constraints for better reconstruction.', difficulty: 'medium' },
-  { game_number: 2, question_number: 9, ai_app_id: null, question_type: 'tech', question_text: 'Which deep learning technique converts depth maps to 3D meshes?', correct_option: 1, option_1: 'Volumetric CNNs or implicit function networks', option_2: 'Generative Adversarial Networks (GANs) only', option_3: 'Recurrent neural networks', option_4: 'K-means clustering', explanation: 'Volumetric approaches and implicit representations handle depth-to-mesh conversion.', difficulty: 'hard' },
-  { game_number: 2, question_number: 10, ai_app_id: null, question_type: 'tech', question_text: 'What does photogrammetry fundamentally rely on?', correct_option: 1, option_1: 'Epipolar geometry and feature correspondence between images', option_2: 'Color space transformations', option_3: 'Edge detection filters', option_4: 'Texture synthesis', explanation: 'Photogrammetry reconstructs 3D from matching features across images.', difficulty: 'medium' },
-  { game_number: 2, question_number: 11, ai_app_id: null, question_type: 'tech', question_text: 'Which layer type is essential in image-to-3D encoder-decoder architectures?', correct_option: 1, option_1: 'Transposed convolutions (deconvolutions) for upsampling', option_2: 'Max pooling layers', option_3: 'Activation functions only', option_4: 'Dropout layers exclusively', explanation: 'Deconvolutions progressively increase spatial dimensions in decoder.', difficulty: 'medium' },
-  { game_number: 2, question_number: 12, ai_app_id: null, question_type: 'tech', question_text: 'What is the primary output constraint for stable 3D generation?', correct_option: 1, option_1: 'Ensuring geometric consistency and closed mesh surfaces', option_2: 'Minimizing image file size', option_3: 'Maximizing polygon count', option_4: 'Requiring RGB textures', explanation: 'Geometric constraints prevent invalid/degenerate 3D shapes.', difficulty: 'medium' },
-  { game_number: 2, question_number: 13, ai_app_id: null, question_type: 'tech', question_text: 'Which component estimates depth from a single 2D image?', correct_option: 1, option_1: 'Monocular depth estimation network', option_2: 'Color histogram analyzer', option_3: 'Edge detection filter', option_4: 'Texture classifier', explanation: 'Monocular depth networks infer 3D structure from single-view images.', difficulty: 'easy' },
-  { game_number: 2, question_number: 14, ai_app_id: null, question_type: 'tech', question_text: 'What is a key advantage of implicit 3D representations (like NeRF) over explicit meshes?', correct_option: 1, option_1: 'Continuous, resolution-independent representation; no discretization artifacts', option_2: 'Faster rendering speed', option_3: 'Smaller file sizes', option_4: 'Easier manual editing', explanation: 'Implicit functions provide smooth, detail-rich 3D without mesh topology constraints.', difficulty: 'medium' },
-  { game_number: 2, question_number: 15, ai_app_id: null, question_type: 'tech', question_text: 'Which training technique helps image-to-3D models generalize across object categories?', correct_option: 1, option_1: 'Multi-task learning and category-agnostic feature extraction', option_2: 'Data augmentation via color jittering only', option_3: 'Larger batch sizes exclusively', option_4: 'Longer training duration only', explanation: 'Multi-task learning + shared representations improve cross-category generalization.', difficulty: 'hard' }
+  // === EASY (Q1-Q4) ===
+  { game_number: 2, question_number: 1, ai_app_id: null, question_type: 'tech', question_text: 'What is a 3D model?', correct_option: 1, option_1: 'A digital object with height, width and depth', option_2: 'A flat 2D image', option_3: 'A type of video format', option_4: 'A sound file', explanation: '3D models represent objects in three dimensions.', difficulty: 'easy' },
+  { game_number: 2, question_number: 2, ai_app_id: null, question_type: 'tech', question_text: 'What is a point cloud?', correct_option: 1, option_1: 'A set of 3D points in space', option_2: 'A type of weather data', option_3: 'A 2D image filter', option_4: 'A cloud storage system', explanation: 'Point clouds are collections of 3D coordinates.', difficulty: 'easy' },
+  { game_number: 2, question_number: 3, ai_app_id: null, question_type: 'tech', question_text: 'What does "depth" mean in 3D imaging?', correct_option: 2, option_1: 'The color of a pixel', option_2: 'How far an object is from the camera', option_3: 'The brightness of an image', option_4: 'The size of a file', explanation: 'Depth tells us the distance from camera to objects.', difficulty: 'easy' },
+  { game_number: 2, question_number: 4, ai_app_id: null, question_type: 'tech', question_text: 'What is a mesh in 3D graphics?', correct_option: 3, option_1: 'A type of texture', option_2: 'A lighting effect', option_3: 'A surface made of connected triangles', option_4: 'A camera setting', explanation: 'Meshes use polygons (usually triangles) to define surfaces.', difficulty: 'easy' },
+
+  // === MEDIUM (Q5-Q7) ===
+  { game_number: 2, question_number: 5, ai_app_id: null, question_type: 'tech', question_text: 'What is NeRF used for?', correct_option: 1, option_1: 'Turning photos into 3D scenes', option_2: 'Editing text documents', option_3: 'Compressing video files', option_4: 'Creating music', explanation: 'NeRF creates 3D views from a set of 2D photos.', difficulty: 'medium' },
+  { game_number: 2, question_number: 6, ai_app_id: null, question_type: 'tech', question_text: 'What is photogrammetry?', correct_option: 2, option_1: 'Taking photos with a special camera', option_2: 'Creating 3D models from multiple photos', option_3: 'Editing photos on a computer', option_4: 'Printing 3D objects', explanation: 'Photogrammetry rebuilds 3D shapes using many photos.', difficulty: 'medium' },
+  { game_number: 2, question_number: 7, ai_app_id: null, question_type: 'tech', question_text: 'What is the biggest challenge in image-to-3D?', correct_option: 1, option_1: 'One photo can match many 3D shapes', option_2: 'Photos are too large', option_3: 'Cameras are too slow', option_4: 'Colors get lost', explanation: 'A single 2D image is ambiguous — many 3D shapes could match it.', difficulty: 'medium' },
+
+  // === HARD (Q8-Q10) ===
+  { game_number: 2, question_number: 8, ai_app_id: null, question_type: 'tech', question_text: 'Which AI type is best for extracting 3D features from images?', correct_option: 1, option_1: 'Convolutional Neural Networks (CNNs)', option_2: 'Decision Trees', option_3: 'Linear Regression', option_4: 'K-Means Clustering', explanation: 'CNNs are ideal for processing image data for 3D tasks.', difficulty: 'hard' },
+  { game_number: 2, question_number: 9, ai_app_id: null, question_type: 'tech', question_text: 'What does depth estimation predict?', correct_option: 2, option_1: 'The color of each pixel', option_2: 'The distance of each pixel from the camera', option_3: 'The brightness of the image', option_4: 'The resolution of the image', explanation: 'Depth estimation assigns a distance value to each pixel.', difficulty: 'hard' },
+  { game_number: 2, question_number: 10, ai_app_id: null, question_type: 'tech', question_text: 'Why are multiple views better for 3D reconstruction?', correct_option: 3, option_1: 'They make the image brighter', option_2: 'They reduce file size', option_3: 'They remove ambiguity about 3D shape', option_4: 'They speed up rendering', explanation: 'Multiple views give geometric clues that reduce guesswork.', difficulty: 'hard' }
 ];
 
 // Database state mode
@@ -141,7 +132,7 @@ async function initializeDatabase() {
         game_number INT NOT NULL UNIQUE CHECK (game_number IN (1, 2)),
         game_name VARCHAR(100) NOT NULL,
         game_description VARCHAR(500),
-        total_questions INT DEFAULT 15,
+        total_questions INT DEFAULT 10,
         category VARCHAR(100),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -671,7 +662,7 @@ class GameRunner {
     this.io.to(this.roomCode).emit('game_1_started', {
       game_name: "AI Chatbot Trivia",
       game_number: 1,
-      total_questions: 15,
+      total_questions: 10,
       message: "Game 1 started! Answer trivia about AI chatbots."
     });
 
@@ -792,7 +783,7 @@ class GameRunner {
 
     // Wait 3 seconds, then proceed (given extra second for explanation view)
     setTimeout(async () => {
-      if (this.currentQuestionNumber < 15) {
+      if (this.currentQuestionNumber < 10) {
         this.loadQuestion(this.currentQuestionNumber + 1);
       } else {
         if (this.currentGameNumber === 1) {
@@ -806,7 +797,7 @@ class GameRunner {
 
   async finishGame1() {
     this.status = 'game_1_finished';
-    await db.updateSessionStatus(this.roomCode, 'game_1_finished', 15, 1);
+    await db.updateSessionStatus(this.roomCode, 'game_1_finished', 10, 1);
     const leaderboard = await db.getLeaderboard(this.roomCode);
     
     this.io.to(this.roomCode).emit('game_1_finished', {
@@ -874,8 +865,8 @@ class GameRunner {
     this.io.to(this.roomCode).emit('game_2_started', {
       game_name: "Image-to-3D Conversion Technology",
       game_number: 2,
-      total_questions: 15,
-      message: "Game 2 started! Answer technical questions about 3D reconstruction."
+      total_questions: 10,
+      message: "Game 2 started! Answer questions about 3D reconstruction."
     });
 
     this.loadQuestion(1);
@@ -883,7 +874,7 @@ class GameRunner {
 
   async finishGame2() {
     this.status = 'completed';
-    await db.updateSessionStatus(this.roomCode, 'completed', 15, 2);
+    await db.updateSessionStatus(this.roomCode, 'completed', 10, 2);
     await db.updateFinalRanks(this.roomCode);
     const leaderboard = await db.getLeaderboard(this.roomCode);
 
