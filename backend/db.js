@@ -10,11 +10,13 @@ let isPostgres = false;
 
 // Check if PostgreSQL configuration is available
 if (process.env.DATABASE_URL) {
+  const isLocalPg = process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1');
   pgPool = new Pool({
     connectionString: process.env.DATABASE_URL,
+    ssl: isLocalPg ? false : { rejectUnauthorized: false },
     max: 50, // Connection pool size optimized for concurrent players
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    connectionTimeoutMillis: 5000,
   });
   isPostgres = true;
   console.log('Database Client: Using PostgreSQL connection pool.');

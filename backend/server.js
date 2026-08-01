@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
 const os = require('os');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -934,7 +935,12 @@ app.use(express.static(frontendDistPath));
 
 // SPA catch-all: serve index.html for any non-API route
 app.get('*', (req, res) => {
-  res.sendFile(path.join(frontendDistPath, 'index.html'));
+  const indexPath = path.join(frontendDistPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(200).send('<h1>AI Trivia Tournament API & Socket Server running</h1><p>Frontend static assets not found. Run "npm run build" to generate static files.</p>');
+  }
 });
 
 // Start application
