@@ -109,7 +109,7 @@ function TournamentContent() {
     <>
       {/* Persistent QR Code on ALL screens */}
       {roomCode && (
-        <QRCodeDisplay roomCode={roomCode} playerId={playerId} size={qrSize} />
+        <QRCodeDisplay roomCode={roomCode} size={qrSize} />
       )}
       
       {/* Dynamic Screen Container */}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getServerUrl } from '../context/GameContext';
 
-export default function QRCodeDisplay({ roomCode, playerId, size = 'small' }) {
+export default function QRCodeDisplay({ roomCode, size = 'small' }) {
   const [networkHost, setNetworkHost] = useState(window.location.host);
 
   useEffect(() => {
@@ -22,18 +22,15 @@ export default function QRCodeDisplay({ roomCode, playerId, size = 'small' }) {
 
   if (!roomCode) return null;
 
-  // Construct URL for scanning on mobile phones
+  // Construct clean room URL for joining on mobile phones (NEVER include host playerId)
   const protocol = window.location.protocol;
   const pathname = window.location.pathname;
   const baseUrl = `${protocol}//${networkHost}${pathname}`;
-  
-  const rejoinUrl = playerId 
-    ? `${baseUrl}?room=${roomCode}&player=${playerId}` 
-    : `${baseUrl}?room=${roomCode}`;
+  const joinUrl = `${baseUrl}?room=${encodeURIComponent(roomCode)}`;
 
   // Request higher resolution image for the large variant
   const qrPixels = size === 'large' ? 280 : 140;
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrPixels}x${qrPixels}&data=${encodeURIComponent(rejoinUrl)}&color=0-0-0&bgcolor=255-255-255`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrPixels}x${qrPixels}&data=${encodeURIComponent(joinUrl)}&color=0-0-0&bgcolor=255-255-255`;
 
   const isLarge = size === 'large';
 
