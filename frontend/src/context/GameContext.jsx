@@ -81,13 +81,20 @@ export const GameProvider = ({ children }) => {
     socket.on('connect', () => {
       console.log('Socket connected to backend server.');
       
-      // Auto-trigger rejoin if playerId exists in URL or localStorage
       const params = new URLSearchParams(window.location.search);
-      const urlPlayerId = params.get('player') || playerId;
+      const urlPlayerId = params.get('player');
       const urlRoomCode = params.get('room') || roomCode;
 
-      if (urlPlayerId && urlRoomCode) {
+      // Only attempt rejoin if player opened an explicit rejoin link with ?player=...
+      if (urlPlayerId) {
         socket.emit('request_rejoin', { roomCode: urlRoomCode, playerId: urlPlayerId });
+      } else {
+        // Direct site visit: start fresh from the beginning
+        localStorage.removeItem('trivia_player_id');
+        localStorage.removeItem('trivia_player_name');
+        setPlayerId(null);
+        setPlayerName('');
+        setCurrentState('lobby');
       }
     });
 
