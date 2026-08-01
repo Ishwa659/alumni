@@ -451,17 +451,73 @@ io.on('connection', (socket) => {
     }, SPIN_WHEEL_DURATION + 2000);
   });
 
+  // Handle Explicit Player Leave
+  socket.on('leave_game', async (data) => {
+    const { roomCode = 'TOURNAMENT', playerId } = data;
+    const room = activeRooms[roomCode];
+    if (!room || !playerId || !room.players[playerId]) return;
+
+    console.log(`Player left explicitly: ${room.players[playerId].name} (${playerId})`);
+    delete room.players[playerId];
+
+    // Remove from DB if in lobby
+    if (room.currentState === 'lobby') {
+      await db.query('DELETE FROM player_scores WHERE id = $1', [playerId]).catch(err => console.error(err.message));
+    }
+
+    // Reassign host if host left
+    if (room.hostPlayerId === playerId) {
+      const remainingPids = Object.keys(room.players);
+      room.hostPlayerId = remainingPids.length > 0 ? remainingPids[0] : null;
+      if (room.hostPlayerId && room.players[room.hostPlayerId].socketId) {
+        io.to(room.players[room.hostPlayerId].socketId).emit('player_registered', {
+          playerId: room.hostPlayerId,
+          roomCode: room.roomCode,
+          isHost: true
+        });
+      }
+    }
+
+    // Broadcast updated lobby
+    const lobbyPlayers = Object.values(room.players)
+      .filter(p => !!p.socketId)
+      .map(p => ({ name: p.name, joined: true }));
+    io.to(roomCode).emit('lobby_update', { players: lobbyPlayers, currentState: room.currentState });
+  });
+
   socket.on('disconnect', () => {
     console.log(`Socket disconnected: ${socket.id}`);
-    // Keep player in room records for rejoin, but clear socket ID
     for (const roomCode in activeRooms) {
       const room = activeRooms[roomCode];
       for (const playerId in room.players) {
         if (room.players[playerId].socketId === socket.id) {
-          room.players[playerId].socketId = null;
+          if (room.currentState === 'lobby') {
+            // Completely remove player from lobby if they disconnect before game start
+            console.log(`Removing disconnected lobby player: ${room.players[playerId].name} (${playerId})`);
+            delete room.players[playerId];
+            db.query('DELETE FROM player_scores WHERE id = $1', [playerId]).catch(err => console.error(err.message));
+
+            // Reassign host if host disconnected
+            if (room.hostPlayerId === playerId) {
+              const remainingPids = Object.keys(room.players);
+              room.hostPlayerId = remainingPids.length > 0 ? remainingPids[0] : null;
+              if (room.hostPlayerId && room.players[room.hostPlayerId].socketId) {
+                io.to(room.players[room.hostPlayerId].socketId).emit('player_registered', {
+                  playerId: room.hostPlayerId,
+                  roomCode: room.roomCode,
+                  isHost: true
+                });
+              }
+            }
+          } else {
+            // Mid-game disconnection: mark offline but retain score record
+            room.players[playerId].socketId = null;
+          }
           
-          // Broadcast list change (players joined/left indicator)
-          const lobbyPlayers = Object.values(room.players).map(p => ({ name: p.name, joined: !!p.socketId }));
+          // Broadcast list change (only active connected players)
+          const lobbyPlayers = Object.values(room.players)
+            .filter(p => !!p.socketId)
+            .map(p => ({ name: p.name, joined: true }));
           io.to(roomCode).emit('lobby_update', { players: lobbyPlayers, currentState: room.currentState });
           break;
         }

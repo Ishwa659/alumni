@@ -286,6 +286,9 @@ export const GameProvider = ({ children }) => {
   };
 
   const exitTournament = () => {
+    if (socket && roomCode && playerId) {
+      socket.emit('leave_game', { roomCode, playerId });
+    }
     localStorage.removeItem('trivia_player_id');
     localStorage.removeItem('trivia_player_name');
     localStorage.removeItem('trivia_room_code');
