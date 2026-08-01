@@ -1,6 +1,21 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 
+// Dynamic server URL resolver for Local, LAN IP, and Cloud Deployments
+export function getServerUrl() {
+  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SERVER_URL) {
+    return import.meta.env.VITE_SERVER_URL;
+  }
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:5000';
+  }
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname) && window.location.port === '5173') {
+    return `${window.location.protocol}//${window.location.hostname}:5000`;
+  }
+  // Production Cloud Deployment (Render, Railway, Heroku, custom domain): serve from origin
+  return window.location.origin;
+}
+
 const GameContext = createContext();
 
 export const useGame = () => useContext(GameContext);
@@ -11,7 +26,6 @@ export const GameProvider = ({ children }) => {
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('trivia_player_name') || '');
   const [roomCode, setRoomCode] = useState(() => {
     const stored = localStorage.getItem('trivia_room_code');
-    // Sanitize: if stored value is corrupted (e.g. doubled), reset to default
     if (stored && stored.length <= 20) return stored;
     localStorage.removeItem('trivia_room_code');
     return 'TOURNAMENT';
@@ -45,10 +59,7 @@ export const GameProvider = ({ children }) => {
 
   // Initialize socket connection on component mount
   useEffect(() => {
-    // Dynamically resolve server URL based on window environment
-    const serverUrl = window.location.hostname === 'localhost' 
-      ? 'http://localhost:5000' 
-      : `${window.location.protocol}//${window.location.hostname}:5000`;
+    const serverUrl = getServerUrl();
 
     const newSocket = io(serverUrl, {
       autoConnect: true,
@@ -260,9 +271,7 @@ export const GameProvider = ({ children }) => {
   };
 
   const startGame = async () => {
-    const serverUrl = window.location.hostname === 'localhost' 
-      ? 'http://localhost:5000' 
-      : `${window.location.protocol}//${window.location.hostname}:5000`;
+    const serverUrl = getServerUrl();
     
     try {
       const res = await fetch(`${serverUrl}/api/admin/start`, {

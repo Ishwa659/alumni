@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getServerUrl } from '../context/GameContext';
 
 export default function QRCodeDisplay({ roomCode, playerId, size = 'small' }) {
   const [networkHost, setNetworkHost] = useState(window.location.host);
@@ -6,18 +7,16 @@ export default function QRCodeDisplay({ roomCode, playerId, size = 'small' }) {
   useEffect(() => {
     // If running on localhost or 127.0.0.1, fetch machine's actual LAN IP from server
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      const serverUrl = 'http://localhost:5000';
+      const serverUrl = getServerUrl();
       fetch(`${serverUrl}/api/info`)
-        ? fetch(`${serverUrl}/api/info`)
-            .then(res => res.json())
-            .then(data => {
-              if (data && data.localIp && data.localIp !== 'localhost') {
-                const port = window.location.port ? `:${window.location.port}` : '';
-                setNetworkHost(`${data.localIp}${port}`);
-              }
-            })
-            .catch(err => console.warn('Could not fetch local IP:', err.message))
-        : null;
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.localIp && data.localIp !== 'localhost') {
+            const port = window.location.port ? `:${window.location.port}` : '';
+            setNetworkHost(`${data.localIp}${port}`);
+          }
+        })
+        .catch(err => console.warn('Could not fetch local IP:', err.message));
     }
   }, []);
 
