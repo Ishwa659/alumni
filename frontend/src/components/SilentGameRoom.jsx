@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 
 export default function SilentGameRoom({
@@ -14,6 +14,56 @@ export default function SilentGameRoom({
   isHost = false
 }) {
   const [clickedIndex, setClickedIndex] = useState(null);
+  const audioCtxRef = useRef(null);
+  const lastBeepSecondRef = useRef(null);
+
+  // Play audio beep synthesizer
+  const playBeep = (freq = 750, isFinal = false) => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+
+      const duration = isFinal ? 0.25 : 0.12;
+      const vol = isFinal ? 0.25 : 0.15;
+
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch (e) {
+      // Audio autoplay fallback handling
+    }
+  };
+
+  // Beep sound effect for the last 3 seconds (3s, 2s, 1s)
+  useEffect(() => {
+    if (secondsRemaining <= 3 && secondsRemaining >= 1 && lastBeepSecondRef.current !== secondsRemaining) {
+      lastBeepSecondRef.current = secondsRemaining;
+      if (secondsRemaining === 1) {
+        playBeep(1000, true); // Higher pitch for final second
+      } else {
+        playBeep(750, false); // Standard warning beep for 3s and 2s
+      }
+    }
+    if (secondsRemaining > 3) {
+      lastBeepSecondRef.current = null;
+    }
+  }, [secondsRemaining]);
 
   // Reset local selection when question loads
   useEffect(() => {
@@ -41,6 +91,7 @@ export default function SilentGameRoom({
 
   const optionLetters = ['A', 'B', 'C', 'D'];
   const timerPercentage = (secondsRemaining / 15) * 100;
+  const isLastThreeSeconds = secondsRemaining <= 3 && secondsRemaining > 0;
 
   return (
     <div className="container">
@@ -69,7 +120,7 @@ export default function SilentGameRoom({
             <span className="round-title-label">Round {currentRound}/5</span>
             <span className="round-name-value glow-text">{roundTitle.replace(/ROUND\s+\d\/\d:\s+/gi, '')}</span>
           </div>
-          <div className="timer-box">
+          <div className="timer-box" style={isLastThreeSeconds ? { borderColor: 'var(--accent-pink)', color: 'var(--accent-pink)' } : {}}>
             <span className="timer-icon-spinning">⏱️</span>
             <span>{secondsRemaining}s</span>
           </div>
@@ -79,7 +130,10 @@ export default function SilentGameRoom({
         <div className="timer-bar-container">
           <div 
             className="timer-bar-fill"
-            style={{ width: `${timerPercentage}%` }}
+            style={{ 
+              width: `${timerPercentage}%`,
+              background: isLastThreeSeconds ? 'var(--accent-pink)' : undefined
+            }}
           ></div>
         </div>
 
