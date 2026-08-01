@@ -22,7 +22,7 @@ export default function SplashScreen({ onStart }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
         >
-          ALUMNI MEET 2025
+          ALUMNI MEET 2026
         </motion.div>
 
         <motion.h1
