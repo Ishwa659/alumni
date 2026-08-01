@@ -10,7 +10,8 @@ export default function SilentGameRoom({
   secondsRemaining,
   hasSubmitted,
   statusMessage,
-  onSubmitAnswer
+  onSubmitAnswer,
+  isHost = false
 }) {
   const [clickedIndex, setClickedIndex] = useState(null);
 
@@ -33,7 +34,7 @@ export default function SilentGameRoom({
   }
 
   const handleOptionClick = (idx) => {
-    if (hasSubmitted || secondsRemaining <= 0) return;
+    if (isHost || hasSubmitted || secondsRemaining <= 0) return;
     setClickedIndex(idx);
     onSubmitAnswer(idx);
   };
@@ -44,6 +45,24 @@ export default function SilentGameRoom({
   return (
     <div className="container">
       <div className="glass-panel">
+        {/* Host Mode Indicator Header */}
+        {isHost && (
+          <div style={{
+            background: 'rgba(124, 58, 237, 0.1)',
+            border: '1px solid var(--primary-purple)',
+            borderRadius: '10px',
+            padding: '8px 16px',
+            marginBottom: '16px',
+            textAlign: 'center',
+            fontSize: '13px',
+            fontWeight: '700',
+            color: 'var(--primary-purple)',
+            letterSpacing: '0.5px'
+          }}>
+            📺 HOST DISPLAY MODE — View Only (Participants answer on their devices)
+          </div>
+        )}
+
         {/* Header */}
         <div className="game-room-header">
           <div className="round-info">
@@ -83,7 +102,7 @@ export default function SilentGameRoom({
             let buttonClass = 'option-button';
             if (isSelected) {
               buttonClass += ' submitted-active';
-            } else if (isAnySelected) {
+            } else if (isAnySelected || isHost) {
               buttonClass += ' submitted-disabled';
             }
 
@@ -92,7 +111,8 @@ export default function SilentGameRoom({
                 key={idx}
                 className={buttonClass}
                 onClick={() => handleOptionClick(idx)}
-                disabled={isAnySelected || secondsRemaining <= 0}
+                disabled={isHost || isAnySelected || secondsRemaining <= 0}
+                style={isHost ? { cursor: 'default', opacity: 0.85 } : {}}
               >
                 <span className="option-letter">{optionLetters[idx]}</span>
                 <span className="option-text">{opt}</span>
@@ -101,8 +121,15 @@ export default function SilentGameRoom({
           })}
         </div>
 
-        {/* Silent Submission Acknowledgement */}
-        {hasSubmitted && (
+        {/* Host info banner */}
+        {isHost && (
+          <div className="status-submitted-label" style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+            <span>👀</span> Host View: Monitoring player submissions for Question {currentQuestionNumber}
+          </div>
+        )}
+
+        {/* Silent Submission Acknowledgement for Contestants */}
+        {!isHost && hasSubmitted && (
           <motion.div 
             className="status-submitted-label"
             initial={{ opacity: 0, y: 5 }}
@@ -112,8 +139,8 @@ export default function SilentGameRoom({
           </motion.div>
         )}
 
-        {/* Timer Expired Banner */}
-        {secondsRemaining <= 0 && !hasSubmitted && (
+        {/* Timer Expired Banner for Contestants */}
+        {!isHost && secondsRemaining <= 0 && !hasSubmitted && (
           <div className="status-submitted-label" style={{ color: 'var(--accent-pink)' }}>
             ⚠️ Time is up! Question locked.
           </div>

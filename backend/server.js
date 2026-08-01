@@ -383,6 +383,9 @@ io.on('connection', (socket) => {
     const player = room.players[playerId];
     if (!player) return;
 
+    // Host cannot submit answers (host is presenter only)
+    if (room.hostPlayerId === playerId) return;
+
     // Check if the submission matches the current active round and question
     if (room.currentState !== `round_${round_number}` || room.currentQuestion !== question_number) {
       return; // Ignore stale submissions

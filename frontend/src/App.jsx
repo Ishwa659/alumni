@@ -61,6 +61,7 @@ function TournamentContent() {
             hasSubmitted={hasSubmitted}
             statusMessage={statusMessage}
             onSubmitAnswer={submitAnswer}
+            isHost={isHost}
           />
         );
         
