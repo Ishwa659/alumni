@@ -24,9 +24,11 @@ function TournamentContent() {
     finalResults,
     playerId,
     roomCode,
+    isHost,
     joinGame,
     submitAnswer,
     startGame,
+    triggerSpin,
     exitTournament
   } = useGame();
 
@@ -40,6 +42,7 @@ function TournamentContent() {
             players={lobbyPlayers} 
             currentState={currentState}
             onStartGame={startGame}
+            isHost={isHost}
           />
         );
         
@@ -69,6 +72,9 @@ function TournamentContent() {
             selectedIndex={spinData?.selected_index || 0}
             spinDuration={spinData?.spin_duration || 4}
             remainingTopics={spinData?.remaining_topics || []}
+            spinStarted={spinData?.spinStarted || false}
+            isHost={isHost}
+            onTriggerSpin={triggerSpin}
             onSpinComplete={null}
           />
         );

@@ -37,17 +37,18 @@ export const GameProvider = ({ children }) => {
   // Spin Wheel state
   const [spinData, setSpinData] = useState(null);
   
+  // Host state
+  const [isHost, setIsHost] = useState(false);
+  
   // Final Results state
   const [finalResults, setFinalResults] = useState(null);
 
   // Initialize socket connection on component mount
   useEffect(() => {
-    // Dynamically resolve server URL based on environment
-    // In production (Render), frontend is served from the same origin as backend
-    // In development, backend runs on port 5000
+    // Dynamically resolve server URL based on window environment
     const serverUrl = window.location.hostname === 'localhost' 
       ? 'http://localhost:5000' 
-      : window.location.origin;
+      : `${window.location.protocol}//${window.location.hostname}:5000`;
 
     const newSocket = io(serverUrl, {
       autoConnect: true,
@@ -80,9 +81,10 @@ export const GameProvider = ({ children }) => {
     });
 
     socket.on('player_registered', (data) => {
-      const { playerId: newPid, roomCode: newRcode } = data;
+      const { playerId: newPid, roomCode: newRcode, isHost: hostFlag } = data;
       setPlayerId(newPid);
       setRoomCode(newRcode);
+      setIsHost(!!hostFlag);
       localStorage.setItem('trivia_player_id', newPid);
       localStorage.setItem('trivia_room_code', newRcode);
     });
@@ -140,9 +142,21 @@ export const GameProvider = ({ children }) => {
       setStatusMessage(data.message);
     });
 
+    socket.on('spin_wheel_ready', (data) => {
+      setCurrentState(`spin_${data.round_number - 1}`);
+      setSpinData({
+        round_number: data.round_number,
+        remaining_topics: data.remaining_topics,
+        spinStarted: false
+      });
+    });
+
     socket.on('spin_wheel', (data) => {
       setCurrentState(`spin_${data.round_number - 1}`);
-      setSpinData(data);
+      setSpinData({
+        ...data,
+        spinStarted: true
+      });
     });
 
     socket.on('all_rounds_complete', (data) => {
@@ -183,6 +197,7 @@ export const GameProvider = ({ children }) => {
       socket.off('timer_tick');
       socket.off('answer_submitted');
       socket.off('round_complete');
+      socket.off('spin_wheel_ready');
       socket.off('spin_wheel');
       socket.off('all_rounds_complete');
       socket.off('final_results');
@@ -224,7 +239,7 @@ export const GameProvider = ({ children }) => {
   const startGame = async () => {
     const serverUrl = window.location.hostname === 'localhost' 
       ? 'http://localhost:5000' 
-      : window.location.origin;
+      : `${window.location.protocol}//${window.location.hostname}:5000`;
     
     try {
       const res = await fetch(`${serverUrl}/api/admin/start`, {
@@ -238,6 +253,12 @@ export const GameProvider = ({ children }) => {
       }
     } catch (err) {
       alert('Could not reach the server.');
+    }
+  };
+
+  const triggerSpin = () => {
+    if (socket && isHost) {
+      socket.emit('host_spin_wheel', { roomCode, playerId });
     }
   };
 
@@ -272,9 +293,11 @@ export const GameProvider = ({ children }) => {
         playerId,
         playerName,
         roomCode,
+        isHost,
         joinGame,
         submitAnswer,
         startGame,
+        triggerSpin,
         exitTournament
       }}
     >

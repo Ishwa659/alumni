@@ -7,13 +7,16 @@ export default function SpinWheel({
   selectedIndex,
   spinDuration = 4, // in seconds
   remainingTopics = [],
+  spinStarted = false,
+  isHost = false,
+  onTriggerSpin,
   onSpinComplete
 }) {
   const canvasRef = useRef(null);
   const audioCtxRef = useRef(null);
   const animationFrameRef = useRef(null);
   const lastTickSegmentRef = useRef(-1);
-  const [selectedBannerText, setSelectedBannerText] = useState('SPINNING THE WHEEL...');
+  const [selectedBannerText, setSelectedBannerText] = useState('');
   const [isLanded, setIsLanded] = useState(false);
 
   // Color palette for wheel segments
@@ -89,7 +92,61 @@ export default function SpinWheel({
   // Easing function: Quartic ease-out
   const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
 
+  // Draw the static wheel (no animation)
+  const drawStaticWheel = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || segments.length === 0) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    const radius = width / 2;
+    const numSegments = segments.length;
+    const segmentAngle = (2 * Math.PI) / numSegments;
+
+    ctx.clearRect(0, 0, width, height);
+    ctx.save();
+    ctx.translate(radius, radius);
+
+    for (let i = 0; i < numSegments; i++) {
+      const angleStart = i * segmentAngle;
+      const angleEnd = (i + 1) * segmentAngle;
+      const topic = segments[i];
+
+      // Draw Slice
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, radius - 8, angleStart, angleEnd);
+      ctx.closePath();
+      ctx.fillStyle = topic.color;
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+
+      // Draw Text
+      ctx.save();
+      ctx.rotate(angleStart + segmentAngle / 2);
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 15px Outfit';
+      ctx.fillText(`${topic.icon} ${topic.name}`, radius - 28, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+  };
+
+  // Draw static wheel on mount (before spin starts)
   useEffect(() => {
+    if (!spinStarted) {
+      drawStaticWheel();
+    }
+  }, [segments.length, spinStarted]);
+
+  // Spin animation — only runs when spinStarted becomes true
+  useEffect(() => {
+    if (!spinStarted) return;
+    
     const canvas = canvasRef.current;
     if (!canvas || segments.length === 0) return;
     const ctx = canvas.getContext('2d');
@@ -136,6 +193,9 @@ export default function SpinWheel({
     };
 
     // Spin animation execution
+    setSelectedBannerText('SPINNING THE WHEEL...');
+    setIsLanded(false);
+    
     let startTime = null;
     const startAngle = 0;
     
@@ -184,7 +244,7 @@ export default function SpinWheel({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [selectedIndex, spinDuration, segments.length]);
+  }, [spinStarted, selectedIndex, spinDuration, segments.length]);
 
   return (
     <div className="container">
@@ -193,7 +253,7 @@ export default function SpinWheel({
           Round {roundNumber} Topic Draw
         </h2>
         <h1 className="lobby-title" style={{ fontSize: '24px', marginBottom: '20px' }}>
-          SPIN THE WHEEL FOR ROUND {roundNumber}
+          {spinStarted ? `SPINNING FOR ROUND ${roundNumber}` : `SPIN THE WHEEL FOR ROUND ${roundNumber}`}
         </h1>
 
         <div className="wheel-outer-wrapper">
@@ -209,14 +269,41 @@ export default function SpinWheel({
           </div>
         </div>
 
-        <motion.div 
-          className="spin-announcement"
-          animate={{ scale: isLanded ? [1, 1.1, 1] : 1 }}
-          transition={{ duration: 0.4 }}
-          style={{ color: isLanded ? 'var(--state-success)' : 'var(--primary-purple)' }}
-        >
-          {selectedBannerText}
-        </motion.div>
+        {/* Host Spin Button — only shown before spinning starts */}
+        {!spinStarted && isHost && (
+          <div className="host-controls">
+            <motion.button 
+              className="btn-start-game"
+              onClick={onTriggerSpin}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3, duration: 0.4, ease: 'easeOut' }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              🎰 Spin the Wheel!
+            </motion.button>
+          </div>
+        )}
+
+        {/* Non-host waiting message */}
+        {!spinStarted && !isHost && (
+          <div className="host-controls">
+            <p className="waiting-text">⏳ Waiting for the host to spin the wheel...</p>
+          </div>
+        )}
+
+        {/* Banner text — only shown during/after spin */}
+        {spinStarted && (
+          <motion.div 
+            className="spin-announcement"
+            animate={{ scale: isLanded ? [1, 1.1, 1] : 1 }}
+            transition={{ duration: 0.4 }}
+            style={{ color: isLanded ? 'var(--state-success)' : 'var(--primary-purple)' }}
+          >
+            {selectedBannerText}
+          </motion.div>
+        )}
       </div>
     </div>
   );

@@ -280,8 +280,25 @@ io.on('connection', (socket) => {
         });
       }
     } else if (room.currentState.startsWith('spin_')) {
-      // Send spin event
-      sendSpinWheelEvent(socket, room);
+      // If spin hasn't started yet, send ready event; otherwise send spin event
+      if (!room.spinStarted) {
+        const nextRound = room.currentRound + 1;
+        const wheelTopics = [
+          { id: 2, name: 'AI Image' },
+          { id: 3, name: 'AI Movie' },
+          { id: 4, name: 'AI Music' },
+          { id: 5, name: 'Text-to-Video' },
+          { id: 6, name: 'Meme' }
+        ];
+        const previouslyUsed = room.usedTopics.slice(0, nextRound - 2);
+        const activeTopics = wheelTopics.filter(t => !previouslyUsed.includes(t.id));
+        socket.emit('spin_wheel_ready', {
+          round_number: nextRound,
+          remaining_topics: activeTopics.map(t => ({ name: t.name }))
+        });
+      } else {
+        sendSpinWheelEvent(socket, room);
+      }
     } else if (room.currentState === 'results') {
       // Send results immediately
       sendFinalResults(socket, room);
@@ -355,6 +372,36 @@ io.on('connection', (socket) => {
     }
 
     startCountdown(room);
+  });
+
+  // Handle Host Spin Wheel — host manually triggers the spin
+  socket.on('host_spin_wheel', async (data) => {
+    const { roomCode = 'TOURNAMENT', playerId } = data;
+    const room = activeRooms[roomCode];
+
+    if (!room) return socket.emit('error_message', { message: 'Room not found.' });
+    
+    // Verify the requester is the host
+    if (room.hostPlayerId !== playerId) {
+      return socket.emit('error_message', { message: 'Only the host can spin the wheel.' });
+    }
+
+    // Verify we are in a spin-ready state
+    if (!room.currentState.startsWith('spin_') || room.spinStarted) {
+      return socket.emit('error_message', { message: 'Spin is not available right now.' });
+    }
+
+    room.spinStarted = true;
+
+    // Select topic and broadcast spin animation to all clients
+    sendSpinWheelEvent(io.to(room.roomCode), room);
+
+    // Wait for spin animation to complete, then start next round
+    const nextRound = room.currentRound + 1;
+    setTimeout(() => {
+      const topicId = room.usedTopics[nextRound - 2];
+      startRound(room, nextRound, topicId);
+    }, SPIN_WHEEL_DURATION + 2000);
   });
 
   socket.on('disconnect', () => {
@@ -545,23 +592,30 @@ async function endRound(room) {
 }
 
 /**
- * Enter Spin Wheel phase
+ * Enter Spin Wheel phase — waits for host to manually trigger the spin
  */
 function startSpinWheelPhase(room) {
   const nextRound = room.currentRound + 1;
   room.currentState = `spin_${nextRound - 1}`;
+  room.spinStarted = false;
   saveRoomToDb(room);
 
-  // Synchronized broadcast
-  sendSpinWheelEvent(io.to(room.roomCode), room);
+  // Build list of remaining topics for the wheel display
+  const wheelTopics = [
+    { id: 2, name: 'AI Image' },
+    { id: 3, name: 'AI Movie' },
+    { id: 4, name: 'AI Music' },
+    { id: 5, name: 'Text-to-Video' },
+    { id: 6, name: 'Meme' }
+  ];
+  const previouslyUsed = room.usedTopics.slice(0, nextRound - 2);
+  const activeTopics = wheelTopics.filter(t => !previouslyUsed.includes(t.id));
 
-  // Wait for spin animation (spin duration + landing buffer)
-  setTimeout(() => {
-    // Determine landing topic ID
-    // Check what is the selected topic ID from usedTopics (which gets populated prior to sending event)
-    const topicId = room.usedTopics[nextRound - 2];
-    startRound(room, nextRound, topicId);
-  }, SPIN_WHEEL_DURATION + 2000);
+  // Broadcast spin_wheel_ready — wheel shows but doesn't spin yet
+  io.to(room.roomCode).emit('spin_wheel_ready', {
+    round_number: nextRound,
+    remaining_topics: activeTopics.map(t => ({ name: t.name }))
+  });
 }
 
 /**

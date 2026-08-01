@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 
-export default function AnimatedPoster({ onJoin, players, currentState, onStartGame }) {
+export default function AnimatedPoster({ onJoin, players, currentState, onStartGame, isHost }) {
   const [name, setName] = useState('');
   const [room, setRoom] = useState('TOURNAMENT');
 
@@ -68,7 +68,7 @@ export default function AnimatedPoster({ onJoin, players, currentState, onStartG
         </form>
 
         {/* Host Start Button — visible to everyone on the lobby screen */}
-        {players && players.length > 0 && currentState === 'lobby' && (
+        {players && players.length > 0 && currentState === 'lobby' && isHost && (
           <div className="host-controls">
             <motion.button 
               className="btn-start-game"
@@ -81,6 +81,12 @@ export default function AnimatedPoster({ onJoin, players, currentState, onStartG
             >
               🚀 Start Tournament ({players.length} players)
             </motion.button>
+          </div>
+        )}
+
+        {players && players.length > 0 && currentState === 'lobby' && !isHost && (
+          <div className="host-controls">
+            <p className="waiting-text">⏳ Waiting for the host to start the tournament...</p>
           </div>
         )}
 
