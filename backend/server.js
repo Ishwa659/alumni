@@ -240,7 +240,7 @@ io.on('connection', (socket) => {
 
   // Handle Client Join
   socket.on('join_game', async (data) => {
-    const { roomCode = 'TOURNAMENT', playerName } = data;
+    const { roomCode = 'TOURNAMENT', playerName, batchYear } = data;
     let { playerId } = data;
 
     if (!playerName || playerName.trim() === '') {
@@ -265,6 +265,7 @@ io.on('connection', (socket) => {
     room.players[playerId] = {
       id: playerId,
       name: playerName.trim(),
+      batchYear: batchYear || null,
       socketId: socket.id,
       scores: [0, 0, 0, 0, 0],
       totalScore: 0
@@ -889,22 +890,43 @@ async function startResultsPhase(room) {
       }
     });
 
-    const leaderboard = pScores.map((ps, idx) => ({
-      rank: idx + 1,
-      name: ps.name,
-      r1: ps.round_1_score,
-      r2: ps.round_2_score,
-      r3: ps.round_3_score,
-      r4: ps.round_4_score,
-      r5: ps.round_5_score,
-      total: ps.total_score
-    }));
+    const leaderboard = pScores.map((ps, idx) => {
+      const playerData = room.players[ps.id];
+      return {
+        rank: idx + 1,
+        name: ps.name,
+        batchYear: playerData ? playerData.batchYear : null,
+        r1: ps.round_1_score,
+        r2: ps.round_2_score,
+        r3: ps.round_3_score,
+        r4: ps.round_4_score,
+        r5: ps.round_5_score,
+        total: ps.total_score
+      };
+    });
+
+    // Compute Batch Leaderboard — aggregate scores by batch year
+    const batchMap = {};
+    leaderboard.forEach(p => {
+      if (!p.batchYear) return;
+      if (!batchMap[p.batchYear]) {
+        batchMap[p.batchYear] = { batchYear: p.batchYear, totalScore: 0, playerCount: 0, players: [] };
+      }
+      batchMap[p.batchYear].totalScore += p.total;
+      batchMap[p.batchYear].playerCount += 1;
+      batchMap[p.batchYear].players.push(p.name);
+    });
+    const batchLeaderboard = Object.values(batchMap)
+      .map(b => ({ ...b, avgScore: Math.round((b.totalScore / b.playerCount) * 10) / 10 }))
+      .sort((a, b) => b.totalScore - a.totalScore)
+      .map((b, idx) => ({ ...b, rank: idx + 1 }));
 
     const winner = leaderboard[0] || { rank: 1, name: 'Nobody', total: 0 };
 
     room.resultsCache = {
       winner,
       leaderboard,
+      batchLeaderboard,
       statistics: {
         avg_score_per_round: avgScores,
         accuracy_per_round: accPercentages,

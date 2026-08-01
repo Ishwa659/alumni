@@ -81,20 +81,13 @@ export const GameProvider = ({ children }) => {
     socket.on('connect', () => {
       console.log('Socket connected to backend server.');
       
+      // Auto-trigger rejoin if playerId exists in URL or localStorage
       const params = new URLSearchParams(window.location.search);
-      const urlPlayerId = params.get('player');
+      const urlPlayerId = params.get('player') || playerId;
       const urlRoomCode = params.get('room') || roomCode;
 
-      // Only attempt rejoin if player opened an explicit rejoin link with ?player=...
-      if (urlPlayerId) {
+      if (urlPlayerId && urlRoomCode) {
         socket.emit('request_rejoin', { roomCode: urlRoomCode, playerId: urlPlayerId });
-      } else {
-        // Direct site visit: start fresh from the beginning
-        localStorage.removeItem('trivia_player_id');
-        localStorage.removeItem('trivia_player_name');
-        setPlayerId(null);
-        setPlayerName('');
-        setCurrentState('lobby');
       }
     });
 
@@ -249,7 +242,7 @@ export const GameProvider = ({ children }) => {
   }, [socket, playerId, roomCode]);
 
   // Emitters
-  const joinGame = (name, code = 'TOURNAMENT') => {
+  const joinGame = (name, code = 'TOURNAMENT', batchYear = null) => {
     setPlayerName(name);
     setRoomCode(code);
     localStorage.setItem('trivia_player_name', name);
@@ -259,7 +252,8 @@ export const GameProvider = ({ children }) => {
       socket.emit('join_game', {
         roomCode: code,
         playerName: name,
-        playerId: playerId // will be null for new players
+        playerId: playerId, // will be null for new players
+        batchYear
       });
     }
   };

@@ -4,15 +4,23 @@ import { motion } from 'framer-motion';
 export default function AnimatedPoster({ onJoin, players, currentState, onStartGame, isHost, playerId, playerName }) {
   const [name, setName] = useState('');
   const [room, setRoom] = useState('TOURNAMENT');
+  const [batchYear, setBatchYear] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (name.trim()) {
-      onJoin(name, room);
+    if (name.trim() && batchYear) {
+      onJoin(name, room, batchYear);
     }
   };
 
   const hasJoined = !!playerId;
+
+  // Generate batch year options (e.g., 2010 to current year)
+  const currentYear = new Date().getFullYear();
+  const batchYears = [];
+  for (let y = currentYear; y >= 2000; y--) {
+    batchYears.push(y);
+  }
 
   return (
     <div className="container">
@@ -50,6 +58,23 @@ export default function AnimatedPoster({ onJoin, players, currentState, onStartG
                 required
                 maxLength={20}
               />
+            </div>
+
+            <div className="input-group">
+              <label className="input-label" htmlFor="batch-year-input">Batch Year</label>
+              <select
+                id="batch-year-input"
+                className="text-input"
+                value={batchYear}
+                onChange={(e) => setBatchYear(e.target.value)}
+                required
+                style={{ cursor: 'pointer' }}
+              >
+                <option value="" disabled>Select your batch year</option>
+                {batchYears.map(y => (
+                  <option key={y} value={y}>{y}</option>
+                ))}
+              </select>
             </div>
 
             <div className="input-group">
