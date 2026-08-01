@@ -35,7 +35,7 @@ export default function AnimatedPoster({ onJoin, players, currentState, onStartG
             <div className="logo-ring-outer"></div>
             <div className="logo-ring-inner">🤖</div>
           </div>
-          <h1 className="lobby-title">AI Trivia Tournament</h1>
+          <h1 className="lobby-title">AI Tech War</h1>
           <p className="lobby-subtitle">
             5 Rounds of Technical AI Questions. 
             Round 1 is fixed, followed by 4 dynamically spun topics. 
