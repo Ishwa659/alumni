@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import Confetti from 'react-confetti';
 import { motion } from 'framer-motion';
 import LeaderboardTable from './LeaderboardTable';
-import StatisticsCharts from './StatisticsCharts';
 
 export default function FinalResultsPage({ finalResults, roomCode, onExit }) {
   const [windowDimensions, setWindowDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
@@ -29,38 +28,10 @@ export default function FinalResultsPage({ finalResults, roomCode, onExit }) {
     );
   }
 
-  const { winner, leaderboard = [], batchLeaderboard = [], statistics } = finalResults;
+  const { winner, leaderboard = [], batchLeaderboard = [] } = finalResults;
 
-  // Blob CSV compilation for download
-  const handleDownloadCSV = () => {
-    const headers = ['Rank', 'Name', 'Batch Year', 'Round 1 (AI Pulse)', 'Round 2', 'Round 3', 'Round 4', 'Round 5', 'Total Score'];
-    const rows = leaderboard.map(p => [
-      p.rank,
-      p.name,
-      p.batchYear || 'N/A',
-      p.r1,
-      p.r2,
-      p.r3,
-      p.r4,
-      p.r5,
-      p.total
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([`\uFEFF${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `AI_Tournament_Results_Room_${roomCode}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const handlePlayAgain = () => {
+    window.location.reload();
   };
 
   return (
@@ -104,7 +75,7 @@ export default function FinalResultsPage({ finalResults, roomCode, onExit }) {
         </motion.div>
       )}
 
-      {/* 2. Player Leaderboard Table (Virtualized) */}
+      {/* 2. Player Leaderboard Table */}
       <LeaderboardTable leaderboard={leaderboard} />
 
       {/* 3. Batch Year Leaderboard */}
@@ -192,13 +163,10 @@ export default function FinalResultsPage({ finalResults, roomCode, onExit }) {
         </motion.div>
       )}
 
-      {/* 4. Recharts Dashboard */}
-      <StatisticsCharts statistics={statistics} />
-
-      {/* 5. Controls */}
+      {/* 4. Controls */}
       <div className="results-footer-row" style={{ marginTop: '24px' }}>
-        <button className="btn-secondary" onClick={handleDownloadCSV}>
-          📥 Download CSV Results
+        <button className="btn-primary" onClick={handlePlayAgain} style={{ background: 'linear-gradient(135deg, #06b6d4 0%, #8b5cf6 100%)', boxShadow: 'none' }}>
+          🔄 Play Again
         </button>
         <button className="btn-primary" onClick={onExit} style={{ background: 'linear-gradient(135deg, var(--accent-pink) 0%, #be185d 100%)', boxShadow: 'none' }}>
           Exit Tournament
