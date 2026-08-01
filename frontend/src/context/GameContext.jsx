@@ -169,18 +169,40 @@ export const GameProvider = ({ children }) => {
     });
 
     socket.on('player_rejoined', (data) => {
-      const { currentState: serverState, currentRound: serverRound, currentQuestion: serverQuestion, topicName } = data;
+      const { currentState: serverState, currentRound: serverRound, currentQuestion: serverQuestion, topicName, isHost: hostFlag } = data;
       setCurrentState(serverState);
       setCurrentRound(serverRound);
       setCurrentQuestionNumber(serverQuestion);
       setRoundTitle(`ROUND ${serverRound}/5: ${topicName.toUpperCase()}`);
+      if (hostFlag !== undefined) {
+        setIsHost(!!hostFlag);
+      }
     });
 
     socket.on('rejoin_failed', (data) => {
       console.warn('Rejoin failed:', data.message);
-      // Clean stale local storage on failure
+      // Clean ALL stale local storage and reset to lobby
       localStorage.removeItem('trivia_player_id');
+      localStorage.removeItem('trivia_player_name');
+      localStorage.removeItem('trivia_room_code');
       setPlayerId(null);
+      setIsHost(false);
+      setCurrentState('lobby');
+      setFinalResults(null);
+      setLobbyPlayers([]);
+    });
+
+    socket.on('game_reset', (data) => {
+      console.log('Game reset:', data.message);
+      localStorage.removeItem('trivia_player_id');
+      localStorage.removeItem('trivia_player_name');
+      localStorage.removeItem('trivia_room_code');
+      setPlayerId(null);
+      setIsHost(false);
+      setCurrentState('lobby');
+      setFinalResults(null);
+      setLobbyPlayers([]);
+      setSpinData(null);
     });
 
     socket.on('error_message', (data) => {
@@ -203,6 +225,7 @@ export const GameProvider = ({ children }) => {
       socket.off('final_results');
       socket.off('player_rejoined');
       socket.off('rejoin_failed');
+      socket.off('game_reset');
       socket.off('error_message');
     };
   }, [socket, playerId, roomCode]);

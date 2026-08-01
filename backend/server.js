@@ -158,6 +158,33 @@ async function saveRoomToDb(room) {
   }
 }
 
+/**
+ * Reset a room back to fresh lobby state — clears all game data from DB and memory
+ */
+async function resetRoom(roomCode) {
+  console.log(`Resetting room: ${roomCode}`);
+  
+  // Clear database records for this room
+  try {
+    await db.query('DELETE FROM answer_log WHERE game_session_id = $1', [roomCode]);
+    await db.query('DELETE FROM round_results WHERE game_session_id = $1', [roomCode]);
+    await db.query('DELETE FROM tournament_stats WHERE game_session_id = $1', [roomCode]);
+    await db.query('DELETE FROM player_scores WHERE game_session_id = $1', [roomCode]);
+    await db.query('DELETE FROM game_sessions WHERE id = $1', [roomCode]);
+  } catch (err) {
+    console.error('Error clearing DB during reset:', err.message);
+  }
+
+  // Clear from memory
+  delete activeRooms[roomCode];
+  delete roomInitPromises[roomCode];
+
+  // Re-create fresh room
+  const freshRoom = await getOrCreateRoomState(roomCode);
+  console.log(`Room ${roomCode} reset to lobby state.`);
+  return freshRoom;
+}
+
 // REST endpoints
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date() });
@@ -180,6 +207,15 @@ app.post('/api/admin/start', async (req, res) => {
   res.json({ status: 'started' });
 });
 
+// Admin Reset Endpoint
+app.post('/api/admin/reset', async (req, res) => {
+  const { roomCode } = req.body;
+  const code = roomCode || 'TOURNAMENT';
+  await resetRoom(code);
+  io.to(code).emit('game_reset', { message: 'Game has been reset.' });
+  res.json({ status: 'reset', roomCode: code });
+});
+
 // Socket.io handlers
 io.on('connection', (socket) => {
   console.log(`Socket connected: ${socket.id}`);
@@ -197,31 +233,35 @@ io.on('connection', (socket) => {
       playerId = crypto.randomUUID();
     }
 
-    const room = await getOrCreateRoomState(roomCode);
+    let room = await getOrCreateRoomState(roomCode);
     
-    // Set up player
-    if (!room.players[playerId]) {
-      room.players[playerId] = {
-        id: playerId,
-        name: playerName.trim(),
-        socketId: socket.id,
-        scores: [0, 0, 0, 0, 0],
-        totalScore: 0
-      };
-
-      // First player to join becomes the host
-      if (!room.hostPlayerId) {
-        room.hostPlayerId = playerId;
-      }
-
-      // Save player score row to database
-      await db.query(
-        'INSERT INTO player_scores (id, game_session_id, name, total_score) VALUES ($1, $2, $3, 0) ON CONFLICT (id) DO NOTHING',
-        [playerId, roomCode, playerName.trim()]
-      );
-    } else {
-      room.players[playerId].socketId = socket.id;
+    // Auto-reset finished games so new players can join fresh
+    if (room.currentState === 'results') {
+      console.log(`Room ${roomCode} is in results state, auto-resetting for new game.`);
+      room = await resetRoom(roomCode);
     }
+
+    // Always generate a fresh playerId for new joins (ignore stale localStorage IDs)
+    playerId = crypto.randomUUID();
+
+    room.players[playerId] = {
+      id: playerId,
+      name: playerName.trim(),
+      socketId: socket.id,
+      scores: [0, 0, 0, 0, 0],
+      totalScore: 0
+    };
+
+    // First player to join becomes the host
+    if (!room.hostPlayerId) {
+      room.hostPlayerId = playerId;
+    }
+
+    // Save player score row to database
+    await db.query(
+      'INSERT INTO player_scores (id, game_session_id, name, total_score) VALUES ($1, $2, $3, 0) ON CONFLICT (id) DO NOTHING',
+      [playerId, roomCode, playerName.trim()]
+    );
 
     const isHost = room.hostPlayerId === playerId;
     socket.join(roomCode);
@@ -237,8 +277,16 @@ io.on('connection', (socket) => {
     const { roomCode = 'TOURNAMENT', playerId } = data;
     if (!playerId) return;
 
-    const room = await getOrCreateRoomState(roomCode);
+    let room = await getOrCreateRoomState(roomCode);
     const player = room.players[playerId];
+
+    // If the game is over (results state), reset the room and reject the rejoin
+    // so the player gets a clean lobby
+    if (room.currentState === 'results') {
+      console.log(`Rejoin attempt for finished game. Resetting room ${roomCode}.`);
+      room = await resetRoom(roomCode);
+      return socket.emit('rejoin_failed', { message: 'Previous game has ended. Please join again.' });
+    }
 
     if (!player) {
       return socket.emit('rejoin_failed', { message: 'Player record not found.' });
@@ -248,13 +296,15 @@ io.on('connection', (socket) => {
     player.socketId = socket.id;
     socket.join(roomCode);
     
+    const isHost = room.hostPlayerId === playerId;
     console.log(`Player rejoined: ${player.name} (${playerId}) in room ${roomCode}`);
     socket.emit('player_rejoined', { 
       message: 'Welcome back!', 
       currentState: room.currentState,
       currentRound: room.currentRound,
       currentQuestion: room.currentQuestion,
-      topicName: room.currentTopic ? room.currentTopic.name : ''
+      topicName: room.currentTopic ? room.currentTopic.name : '',
+      isHost
     });
 
     // Sync game state depending on where we are
@@ -299,9 +349,6 @@ io.on('connection', (socket) => {
       } else {
         sendSpinWheelEvent(socket, room);
       }
-    } else if (room.currentState === 'results') {
-      // Send results immediately
-      sendFinalResults(socket, room);
     } else {
       // Lobby state
       const lobbyPlayers = Object.values(room.players).map(p => ({ name: p.name, joined: !!p.socketId }));
