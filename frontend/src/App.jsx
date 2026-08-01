@@ -23,6 +23,7 @@ function TournamentContent() {
     spinData,
     finalResults,
     playerId,
+    playerName,
     roomCode,
     isHost,
     joinGame,
@@ -43,6 +44,8 @@ function TournamentContent() {
             currentState={currentState}
             onStartGame={startGame}
             isHost={isHost}
+            playerId={playerId}
+            playerName={playerName}
           />
         );
         

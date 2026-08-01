@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 
-export default function AnimatedPoster({ onJoin, players, currentState, onStartGame, isHost }) {
+export default function AnimatedPoster({ onJoin, players, currentState, onStartGame, isHost, playerId, playerName }) {
   const [name, setName] = useState('');
   const [room, setRoom] = useState('TOURNAMENT');
 
@@ -11,6 +11,8 @@ export default function AnimatedPoster({ onJoin, players, currentState, onStartG
       onJoin(name, room);
     }
   };
+
+  const hasJoined = !!playerId;
 
   return (
     <div className="container">
@@ -33,42 +35,64 @@ export default function AnimatedPoster({ onJoin, players, currentState, onStartG
           </p>
         </div>
 
-        {/* Player join form — players scan QR and join on their devices */}
-        <form onSubmit={handleSubmit} className="join-form">
-          <div className="input-group">
-            <label className="input-label" htmlFor="player-name-input">Your Name</label>
-            <input 
-              id="player-name-input"
-              type="text" 
-              className="text-input" 
-              placeholder="Enter name (e.g. Alice)" 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              maxLength={20}
-            />
+        {/* Player join form — ONLY shown if player is NOT in the game yet */}
+        {!hasJoined ? (
+          <form onSubmit={handleSubmit} className="join-form">
+            <div className="input-group">
+              <label className="input-label" htmlFor="player-name-input">Your Name</label>
+              <input 
+                id="player-name-input"
+                type="text" 
+                className="text-input" 
+                placeholder="Enter name (e.g. Alice)" 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                maxLength={20}
+              />
+            </div>
+
+            <div className="input-group">
+              <label className="input-label" htmlFor="room-code-input">Room Code</label>
+              <input 
+                id="room-code-input"
+                type="text" 
+                className="text-input" 
+                placeholder="TOURNAMENT" 
+                value={room}
+                readOnly
+                style={{ opacity: 0.6, cursor: 'not-allowed' }}
+              />
+            </div>
+
+            <button type="submit" className="btn-primary">
+              Join Tournament
+            </button>
+          </form>
+        ) : (
+          /* Confirmation Badge when Player has ALREADY joined */
+          <div className="joined-confirmation-badge" style={{
+            background: 'rgba(5, 150, 105, 0.08)',
+            border: '1px solid var(--state-success)',
+            borderRadius: '16px',
+            padding: '16px 20px',
+            margin: '16px 0',
+            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            color: 'var(--state-success)',
+            fontWeight: '700',
+            fontSize: '15px'
+          }}>
+            <span className="dot-pulse"></span>
+            <span>✅ Joined as <strong>{playerName || 'Participant'}</strong></span>
           </div>
+        )}
 
-          <div className="input-group">
-            <label className="input-label" htmlFor="room-code-input">Room Code</label>
-            <input 
-              id="room-code-input"
-              type="text" 
-              className="text-input" 
-              placeholder="TOURNAMENT" 
-              value={room}
-              readOnly
-              style={{ opacity: 0.6, cursor: 'not-allowed' }}
-            />
-          </div>
-
-          <button type="submit" className="btn-primary">
-            Join Tournament
-          </button>
-        </form>
-
-        {/* Host Start Button — visible to everyone on the lobby screen */}
-        {players && players.length > 0 && currentState === 'lobby' && isHost && (
+        {/* Host Start Button — visible ONLY to the host */}
+        {hasJoined && players && players.length > 0 && currentState === 'lobby' && isHost && (
           <div className="host-controls">
             <motion.button 
               className="btn-start-game"
@@ -84,7 +108,8 @@ export default function AnimatedPoster({ onJoin, players, currentState, onStartG
           </div>
         )}
 
-        {players && players.length > 0 && currentState === 'lobby' && !isHost && (
+        {/* Non-host waiting message when joined */}
+        {hasJoined && players && players.length > 0 && currentState === 'lobby' && !isHost && (
           <div className="host-controls">
             <p className="waiting-text">⏳ Waiting for the host to start the tournament...</p>
           </div>
