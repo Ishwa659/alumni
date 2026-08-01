@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { GameProvider, useGame } from './context/GameContext';
 import QRCodeDisplay from './components/QRCodeDisplay';
 import AnimatedPoster from './components/AnimatedPoster';
@@ -6,6 +6,7 @@ import CountdownTimer from './components/CountdownTimer';
 import SilentGameRoom from './components/SilentGameRoom';
 import SpinWheel from './components/SpinWheel';
 import FinalResultsPage from './components/FinalResultsPage';
+import SplashScreen from './components/SplashScreen';
 
 function TournamentContent() {
   const {
@@ -125,6 +126,12 @@ function TournamentContent() {
 }
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
+
+  if (showSplash) {
+    return <SplashScreen onStart={() => setShowSplash(false)} />;
+  }
+
   return (
     <GameProvider>
       <TournamentContent />
