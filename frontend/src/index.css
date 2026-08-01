@@ -880,10 +880,12 @@ body {
 /* ─── LARGE QR — Lobby / Entry Page ───────────────────────────── */
 .qr-overlay--large {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 9999;
+  top: 50%;
+  transform: translateY(-50%);
+  right: calc((100vw - 700px) / 2 / 2 - 70px);
+  z-index: 100;
   animation: qr-fade-in 0.6s ease-out;
+  pointer-events: auto;
 }
 
 .qr-overlay--large .qr-overlay__card {
@@ -909,9 +911,9 @@ body {
 /* ─── SMALL QR — All Other Game Screens ───────────────────────── */
 .qr-overlay--small {
   position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 9999;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
   animation: qr-fade-in 0.4s ease-out;
 }
 
@@ -935,25 +937,26 @@ body {
   font-size: 8px;
 }
 
-@media (max-width: 1150px) {
+/* On narrower screens where the right gap shrinks, push QR to top-right corner */
+@media (max-width: 1000px) {
   .qr-overlay--large {
-    position: relative;
-    top: auto;
-    right: auto;
-    margin: 0 auto 20px auto;
-    display: flex;
-    justify-content: center;
+    top: 16px;
+    right: 16px;
+    transform: none;
   }
 }
 
-@media (max-width: 768px) {
+/* On mobile, flow inline so it never overlaps */
+@media (max-width: 780px) {
+  .qr-overlay--large,
   .qr-overlay--small {
     position: relative;
     top: auto;
     right: auto;
-    margin: 0 auto 12px auto;
+    transform: none;
     display: flex;
     justify-content: center;
+    margin: 12px auto;
   }
 }
 
