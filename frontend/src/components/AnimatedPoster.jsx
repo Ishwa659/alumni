@@ -15,10 +15,10 @@ export default function AnimatedPoster({ onJoin, players, currentState, onStartG
 
   const hasJoined = !!playerId;
 
-  // Generate batch year options (e.g., 2010 to current year)
+  // Generate batch year options (from 2013 to current year)
   const currentYear = new Date().getFullYear();
   const batchYears = [];
-  for (let y = currentYear; y >= 2000; y--) {
+  for (let y = currentYear; y >= 2013; y--) {
     batchYears.push(y);
   }
 
