@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const os = require('os');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const crypto = require('crypto');
@@ -18,6 +19,18 @@ const io = new Server(server, {
     methods: ['GET', 'POST']
   }
 });
+
+function getLocalIp() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const net of interfaces[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return 'localhost';
+}
 
 const PORT = process.env.PORT || 5000;
 const SPIN_WHEEL_DURATION = parseInt(process.env.SPIN_WHEEL_DURATION || '4000'); // 4 seconds
@@ -188,6 +201,10 @@ async function resetRoom(roomCode) {
 // REST endpoints
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date() });
+});
+
+app.get('/api/info', (req, res) => {
+  res.json({ localIp: getLocalIp() });
 });
 
 // Create Room Admin Trigger
