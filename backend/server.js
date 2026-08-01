@@ -417,6 +417,19 @@ io.on('connection', (socket) => {
 
     // Acknowledge submission silently only to this player
     socket.emit('answer_submitted', { status: 'submitted', message: 'Answer received' });
+
+    // Check if ALL active contestants (excluding host) have submitted answers
+    const activeContestants = Object.values(room.players).filter(p => p.id !== room.hostPlayerId && !!p.socketId);
+    const submittedCount = Object.keys(room.answersReceived[question_number] || {}).length;
+
+    if (activeContestants.length > 0 && submittedCount >= activeContestants.length) {
+      console.log(`All ${submittedCount} active player(s) answered Question ${question_number}. Early advancing to next question.`);
+      if (room.timer) clearInterval(room.timer);
+      io.to(room.roomCode).emit('timer_tick', { seconds_remaining: 0 });
+      setTimeout(() => {
+        loadQuestion(room);
+      }, 1000);
+    }
   });
 
   // Handle Host Start Game (host is also a player)
