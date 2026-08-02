@@ -31,7 +31,8 @@ function TournamentContent() {
     submitAnswer,
     startGame,
     triggerSpin,
-    exitTournament
+    exitTournament,
+    viewLastResults
   } = useGame();
 
   // Helper method: select which visual screen to render based on backend state machine
@@ -44,15 +45,17 @@ function TournamentContent() {
             players={lobbyPlayers} 
             currentState={currentState}
             onStartGame={startGame}
+            onViewLastResults={viewLastResults}
             isHost={isHost}
             playerId={playerId}
             playerName={playerName}
+            roomCode={roomCode}
           />
         );
-        
+
       case currentState === 'countdown':
         return <CountdownTimer seconds={countdownSeconds} />;
-        
+
       case currentState.startsWith('round_'):
         return (
           <SilentGameRoom
@@ -68,7 +71,7 @@ function TournamentContent() {
             isHost={isHost}
           />
         );
-        
+
       case currentState.startsWith('spin_'):
         return (
           <SpinWheel
@@ -83,7 +86,7 @@ function TournamentContent() {
             onSpinComplete={null}
           />
         );
-        
+
       case currentState === 'results':
         return (
           <FinalResultsPage
@@ -92,7 +95,7 @@ function TournamentContent() {
             onExit={exitTournament}
           />
         );
-        
+
       default:
         return (
           <div className="container">
@@ -107,14 +110,11 @@ function TournamentContent() {
     }
   };
 
-  // Determine QR size: large on lobby/entry, small everywhere else
-  const qrSize = currentState === 'lobby' ? 'large' : 'small';
-
   return (
     <>
-      {/* Persistent QR Code on ALL screens */}
-      {roomCode && (
-        <QRCodeDisplay roomCode={roomCode} size={qrSize} />
+      {/* Persistent floating QR Code on game screens (not in lobby) */}
+      {roomCode && currentState !== 'lobby' && (
+        <QRCodeDisplay roomCode={roomCode} size="small" />
       )}
       
       {/* Dynamic Screen Container */}

@@ -81,8 +81,13 @@ export const GameProvider = ({ children }) => {
     socket.on('connect', () => {
       console.log('Socket connected to backend server.');
       
-      // Auto-trigger rejoin if playerId exists in URL or localStorage
       const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'results' || window.location.pathname === '/results') {
+        viewLastResults();
+        return;
+      }
+
+      // Auto-trigger rejoin if playerId exists in URL or localStorage
       const urlPlayerId = params.get('player') || playerId;
       const urlRoomCode = params.get('room') || roomCode;
 
@@ -295,6 +300,23 @@ export const GameProvider = ({ children }) => {
     }
   };
 
+  const viewLastResults = async () => {
+    const serverUrl = getServerUrl();
+    try {
+      const res = await fetch(`${serverUrl}/api/results/last`);
+      const data = await res.json();
+      if (data && data.leaderboard && data.leaderboard.length > 0) {
+        setFinalResults(data);
+        setCurrentState('results');
+      } else {
+        alert('No previous tournament results found in database.');
+      }
+    } catch (err) {
+      console.error('Failed to fetch last results:', err);
+      alert('Could not connect to server to load previous results.');
+    }
+  };
+
   const exitTournament = () => {
     if (socket && roomCode && playerId) {
       socket.emit('leave_game', { roomCode, playerId });
@@ -334,7 +356,8 @@ export const GameProvider = ({ children }) => {
         submitAnswer,
         startGame,
         triggerSpin,
-        exitTournament
+        exitTournament,
+        viewLastResults
       }}
     >
       {children}

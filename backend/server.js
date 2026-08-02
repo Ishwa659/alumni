@@ -208,6 +208,85 @@ app.get('/api/info', (req, res) => {
   res.json({ localIp: getLocalIp() });
 });
 
+// Fetch Last Game Results Endpoint
+app.get('/api/results/last', async (req, res) => {
+  try {
+    let sessionRes = await db.query(
+      "SELECT id FROM game_sessions WHERE current_state = 'results' ORDER BY created_at DESC LIMIT 1"
+    );
+    let roomCode = sessionRes.rows[0]?.id;
+
+    if (!roomCode) {
+      const psRes = await db.query(
+        "SELECT DISTINCT game_session_id FROM player_scores ORDER BY total_score DESC LIMIT 1"
+      );
+      roomCode = psRes.rows[0]?.game_session_id || 'TOURNAMENT';
+    }
+
+    const { rows: pScores } = await db.query(
+      "SELECT * FROM player_scores WHERE game_session_id = $1 ORDER BY total_score DESC",
+      [roomCode]
+    );
+
+    if (pScores.length === 0) {
+      // Fallback: search across all player scores regardless of session ID
+      const { rows: allScores } = await db.query(
+        "SELECT * FROM player_scores ORDER BY total_score DESC"
+      );
+      pScores.push(...allScores);
+    }
+
+    if (pScores.length === 0) {
+      return res.json({
+        winner: { rank: 1, name: 'None', total: 0 },
+        leaderboard: [],
+        batchLeaderboard: [],
+        roomCode
+      });
+    }
+
+    const leaderboard = pScores.map((ps, idx) => ({
+      rank: idx + 1,
+      name: ps.name,
+      batchYear: ps.batch_year || ps.batchYear || null,
+      r1: ps.round_1_score || 0,
+      r2: ps.round_2_score || 0,
+      r3: ps.round_3_score || 0,
+      r4: ps.round_4_score || 0,
+      r5: ps.round_5_score || 0,
+      total: ps.total_score || 0
+    }));
+
+    const batchMap = {};
+    leaderboard.forEach(p => {
+      if (!p.batchYear) return;
+      if (!batchMap[p.batchYear]) {
+        batchMap[p.batchYear] = { batchYear: p.batchYear, totalScore: 0, playerCount: 0, players: [] };
+      }
+      batchMap[p.batchYear].totalScore += p.total;
+      batchMap[p.batchYear].playerCount += 1;
+      batchMap[p.batchYear].players.push(p.name);
+    });
+    const batchLeaderboard = Object.values(batchMap)
+      .map(b => ({ ...b, avgScore: Math.round((b.totalScore / b.playerCount) * 10) / 10 }))
+      .sort((a, b) => b.totalScore - a.totalScore)
+      .map((b, idx) => ({ ...b, rank: idx + 1 }));
+
+    const winner = leaderboard[0] || { rank: 1, name: 'Nobody', total: 0 };
+
+    res.json({
+      winner,
+      leaderboard,
+      batchLeaderboard,
+      roomCode
+    });
+  } catch (err) {
+    console.error('Error fetching last results:', err.message);
+    res.status(500).json({ error: 'Failed to fetch last results' });
+  }
+});
+
+
 // Create Room Admin Trigger
 app.post('/api/admin/start', async (req, res) => {
   const { roomCode } = req.body;

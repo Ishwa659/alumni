@@ -29,7 +29,7 @@ export default function QRCodeDisplay({ roomCode, size = 'small' }) {
   const joinUrl = `${baseUrl}?room=${encodeURIComponent(roomCode)}`;
 
   // Request higher resolution image for the large variant
-  const qrPixels = size === 'large' ? 160 : 120;
+  const qrPixels = size === 'large' ? 240 : 120;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${qrPixels}x${qrPixels}&data=${encodeURIComponent(joinUrl)}&color=0-0-0&bgcolor=255-255-255`;
 
   const isLarge = size === 'large';
